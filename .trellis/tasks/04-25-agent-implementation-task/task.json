@@ -19,7 +19,6 @@
   "pr_url": null,
   "subtasks": [],
   "children": [
-    "04-25-cli-core-backend",
     "04-25-cli-command-surface",
     "04-25-cli-mcp-mode",
     "04-25-cli-session-observability",
