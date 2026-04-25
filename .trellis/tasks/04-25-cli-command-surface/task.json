@@ -1,0 +1,31 @@
+{
+  "id": "cli-command-surface",
+  "name": "cli-command-surface",
+  "title": "CLI command surface for ssh-cli",
+  "description": "Implement the human-first ssh-cli command parser and command handlers around the shared backend.",
+  "status": "planning",
+  "dev_type": "feature",
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "k10876",
+  "assignee": "k10876",
+  "createdAt": "2026-04-25",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-25-agent-implementation-task",
+  "relatedFiles": [
+    "src/cli/",
+    "src/index.ts",
+    "package.json",
+    "README.md"
+  ],
+  "notes": "",
+  "meta": {}
+}

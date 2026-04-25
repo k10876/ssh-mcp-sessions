@@ -1,0 +1,32 @@
+{
+  "id": "cli-tests-docs",
+  "name": "cli-tests-docs",
+  "title": "Tests and docs for ssh-cli-sessions",
+  "description": "Update tests, package metadata, README, and usage docs for the CLI-first product.",
+  "status": "planning",
+  "dev_type": "feature",
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "k10876",
+  "assignee": "k10876",
+  "createdAt": "2026-04-25",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-25-agent-implementation-task",
+  "relatedFiles": [
+    "package.json",
+    "README.md",
+    "src/",
+    "test/",
+    "tests/"
+  ],
+  "notes": "",
+  "meta": {}
+}

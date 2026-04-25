@@ -1,0 +1,12 @@
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend spec entry point for this TypeScript CLI/MCP refactor"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Target source layout for separating CLI, MCP, services, types, and utilities"}
+{"file": ".trellis/spec/backend/cli-interface.md", "reason": "CLI command names, output conventions, and attach behavior expectations"}
+{"file": ".trellis/spec/backend/session-management.md", "reason": "Session lifecycle, naming, timeout, and logging requirements"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "CLI and MCP error handling conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Testing, typing, validation, and interface separation requirements"}
+{"file": ".trellis/spec/guides/test-driven-development-guide.md", "reason": "Default failing-test-first implementation loop when tests are feasible"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "File-based host persistence and permission expectations"}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Per-session logging and secret redaction requirements"}
+{"file": ".trellis/spec/guides/worktree-usage-guide.md", "reason": "Use isolated worktrees when delegating broad implementation work"}
+{"file": ".trellis/tasks/04-25-agent-implementation-task/prd.md", "reason": "Parent PRD with complete product requirements and cross-subtask context"}
+{"file": ".trellis/tasks/04-25-cli-command-surface/prd.md", "reason": "This child task's scoped implementation requirements"}

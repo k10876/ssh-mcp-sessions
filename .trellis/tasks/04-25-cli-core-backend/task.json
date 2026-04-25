@@ -1,0 +1,33 @@
+{
+  "id": "cli-core-backend",
+  "name": "cli-core-backend",
+  "title": "Core backend extraction for ssh-cli-sessions",
+  "description": "Extract shared host storage, config, utilities, session service, logging primitives, and types from src/index.ts so CLI and MCP can reuse them.",
+  "status": "in_progress",
+  "dev_type": "feature",
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "k10876",
+  "assignee": "k10876",
+  "createdAt": "2026-04-25",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": "04-25-agent-implementation-task",
+  "relatedFiles": [
+    "src/index.ts",
+    "src/services/",
+    "src/types/",
+    "src/utils/",
+    "src/mcp/",
+    "src/cli/"
+  ],
+  "notes": "",
+  "meta": {}
+}
