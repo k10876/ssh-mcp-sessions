@@ -7,7 +7,7 @@ description: Use when working in this repository and needing the project-local T
 
 ## Overview
 
-Project-local Trellis guidance adds two default process expectations: use TDD for behavior changes when tests are feasible, and use git worktrees when implementation needs isolation from the current working tree.
+Project-local Trellis guidance adds three default process expectations: use TDD for behavior changes when tests are feasible, use git worktrees when implementation needs isolation from the current working tree, and choose model strength to match the task.
 
 ## Self-Iteration Protocol
 
@@ -41,9 +41,12 @@ Project-local Trellis guidance adds two default process expectations: use TDD fo
   - Expanded the spec-system description so shared guides explicitly include TDD and worktree isolation.
   - Updated Phase 1 context curation guidance so implement/check context can include the new shared guides when relevant.
   - Updated Phase 2 implementation expectations so agents default to failing-test-first behavior work and use isolated worktrees when the current tree should stay untouched.
+  - Added concise model-selection guidance so lighter tiers are preferred for low-stakes operational loops and stronger tiers for demanding reasoning work.
+  - Added broad tier examples that fit this environment, such as Haiku-class for monitoring/debug loops and Sonnet/Opus-class for demanding requirement, implementation, review, and design work.
 
 ## Why These Customizations Exist
 
 - TDD keeps behavior changes anchored to executable proof instead of memory.
 - Worktree guidance reduces accidental disruption when parallel work or isolation matters.
-- Recording both in shared Trellis docs makes them visible to future implement/check flows instead of relying on one-off reminders.
+- Model-tier guidance helps control cost and latency without underpowering demanding work.
+- Recording these rules in shared Trellis docs makes them visible to future implement/check flows instead of relying on one-off reminders.

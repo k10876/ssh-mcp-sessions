@@ -11,6 +11,13 @@
 5. **Capture learnings** — after each task, review and write new knowledge back to spec
 6. **Default to TDD when tests are feasible** — behavior changes should start with a failing test, then go red → green → refactor
 7. **Use worktrees for clean isolation when needed** — keep implementation out of the user's main tree when parallel work or safety requires separation
+8. **Match model strength to the work** — prefer lighter/faster models for low-stakes operational loops and stronger models for demanding reasoning
+
+### Model Selection
+
+Use lighter/faster model tiers for low-stakes operational loops such as environment debugging, process monitoring, watching logs or builds, and similar polling. Haiku-class models are often a good fit.
+
+Use stronger model tiers for requirement shaping, architectural choices, non-trivial implementation, review/checking, bug diagnosis, and spec/workflow design. Sonnet-class models are usually a good default for demanding work; Opus-class models fit cases with unusually high ambiguity or reasoning load.
 
 ---
 
