@@ -40,6 +40,9 @@ else
   word="${words[$(( RANDOM % ${#words[@]} ))]}"
 fi
 
+digits="$(printf '%03d' $(( RANDOM % 1000 )))"
+word="${word}${digits}"
+
 filename="agent-message-${word}.md"
 project_path="./${filename}"
 shared_dir="$HOME/.claude/agent-msg"
