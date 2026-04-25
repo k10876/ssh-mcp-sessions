@@ -1,0 +1,200 @@
+import type { ConnectConfig } from 'ssh2';
+
+import { ValidationError } from '../errors.js';
+import type { DeadSessionInfo } from '../types/dead-session.js';
+import type { ActiveSessionInfo, CommandResult, SessionInfo } from '../types/session.js';
+import type { StoredHost } from '../types/host.js';
+
+export interface HostRepository {
+  listHosts(): Promise<StoredHost[]>;
+  saveHosts(hosts: StoredHost[]): Promise<void>;
+  getHost(hostId: string): Promise<StoredHost>;
+  getConnectConfig(hostId: string): Promise<ConnectConfig>;
+}
+
+export interface SessionRepository {
+  startSession(id: string, config: ConnectConfig): Promise<SessionInfo>;
+  execute(id: string, command: string): Promise<CommandResult>;
+  closeSession(id: string): Promise<void>;
+  getSessionInfo(id: string): SessionInfo;
+  listSessions(): ActiveSessionInfo[];
+  listDeadSessions(): DeadSessionInfo[];
+  consumeNotifications(): string[];
+}
+
+export type CliDependencies = {
+  hostStore: HostRepository;
+  sessionService: SessionRepository;
+  env?: NodeJS.ProcessEnv;
+  stdout?: Pick<NodeJS.WriteStream, 'write'>;
+  stderr?: Pick<NodeJS.WriteStream, 'write'>;
+  packageVersion: string;
+  executableName?: string;
+  readLogs?: (sessionName: string, options: { lines?: number; follow: boolean }) => Promise<string>;
+  attachInstructions?: (sessionName: string) => Promise<string>;
+  runMcpMode?: (args: string[]) => Promise<void>;
+};
+
+function writeLine(stream: Pick<NodeJS.WriteStream, 'write'>, text: string): void {
+  stream.write(`${text}\n`);
+}
+
+function redactHost(host: StoredHost): string {
+  return host.password ? 'password' : host.keyPath ? 'key' : 'agent';
+}
+
+function isAutoModeEnabled(env: NodeJS.ProcessEnv | undefined, flagEnabled: boolean): boolean {
+  if (flagEnabled) {
+    return true;
+  }
+
+  return env?.SSH_CLI_AI_AUTO_MODE === 'true';
+}
+
+export async function runCliCommand(parsed: import('./types.js').ParsedCliCommand, deps: CliDependencies): Promise<number> {
+  const stdout = deps.stdout ?? process.stdout;
+  const stderr = deps.stderr ?? process.stderr;
+  const env = deps.env ?? process.env;
+
+  switch (parsed.kind) {
+    case 'help': {
+      const { formatHelp } = await import('./formatting.js');
+      writeLine(stdout, formatHelp(deps.packageVersion, deps.executableName));
+      return 0;
+    }
+    case 'version':
+      writeLine(stdout, deps.packageVersion);
+      return 0;
+    case 'add-host': {
+      const hosts = await deps.hostStore.listHosts();
+      if (hosts.some((host) => host.id === parsed.name)) {
+        throw new ValidationError(`Host '${parsed.name}' already exists`);
+      }
+
+      await deps.hostStore.saveHosts([
+        ...hosts,
+        {
+          id: parsed.name,
+          host: parsed.options.host,
+          port: parsed.options.port,
+          username: parsed.username,
+          password: parsed.options.password,
+          keyPath: parsed.options.keyPath,
+        },
+      ]);
+
+      writeLine(stdout, `Added host '${parsed.name}' (${parsed.username}@${parsed.options.host}:${parsed.options.port}, auth: ${parsed.options.password ? 'password' : parsed.options.keyPath ? 'key' : 'agent'})`);
+      return 0;
+    }
+    case 'start': {
+      const config = await deps.hostStore.getConnectConfig(parsed.options.host);
+      const info = await deps.sessionService.startSession(parsed.sessionName, config);
+      writeLine(stdout, `Started session '${info.id}' on ${info.username}@${info.host}:${info.port}`);
+      return 0;
+    }
+    case 'exec': {
+      const autoMode = isAutoModeEnabled(env, parsed.options.auto);
+      if (autoMode) {
+        writeLine(stderr, '[ai-auto] AI auto mode hook enabled; proceeding without external review provider');
+      }
+
+      const result = await deps.sessionService.execute(parsed.sessionName, parsed.command);
+      if (result.output) {
+        writeLine(stdout, result.output);
+      }
+      if (result.exitCode !== 0) {
+        writeLine(stderr, `Command failed in session '${parsed.sessionName}' with exit code ${result.exitCode}`);
+        return result.exitCode;
+      }
+      return 0;
+    }
+    case 'list': {
+      const notifications = deps.sessionService.consumeNotifications();
+      for (const notification of notifications) {
+        writeLine(stderr, notification);
+      }
+
+      const hosts = await deps.hostStore.listHosts();
+      const sessions = deps.sessionService.listSessions();
+      const deadSessions = deps.sessionService.listDeadSessions();
+
+      if (sessions.length === 0 && deadSessions.length === 0 && hosts.length === 0) {
+        writeLine(stdout, 'No hosts or sessions found.');
+        return 0;
+      }
+
+      if (sessions.length > 0) {
+        writeLine(stdout, 'Sessions:');
+        for (const session of sessions) {
+          writeLine(
+            stdout,
+            `- ${session.id}\tactive\t${session.username}@${session.host}:${session.port}\tlast=${session.lastCommand ?? 'n/a'}\tlog=${session.logPath}`,
+          );
+        }
+      } else {
+        writeLine(stdout, 'Sessions: none');
+      }
+
+      if (deadSessions.length > 0) {
+        writeLine(stdout, 'Dead sessions:');
+        for (const session of deadSessions) {
+          writeLine(
+            stdout,
+            `- ${session.id}\tdead\t${session.username}@${session.host}:${session.port}\treason=${session.reason}\tlog=${session.logPath}`,
+          );
+        }
+      } else {
+        writeLine(stdout, 'Dead sessions: none');
+      }
+
+      if (hosts.length > 0) {
+        writeLine(stdout, 'Hosts:');
+        for (const host of hosts) {
+          writeLine(stdout, `- ${host.id}\t${host.username}@${host.host}:${host.port ?? 22}\tauth=${redactHost(host)}`);
+        }
+      } else {
+        writeLine(stdout, 'Hosts: none');
+      }
+
+      return 0;
+    }
+    case 'kill':
+      await deps.sessionService.closeSession(parsed.sessionName);
+      writeLine(stdout, `Closed session '${parsed.sessionName}'`);
+      return 0;
+    case 'logs': {
+      if (!deps.readLogs) {
+        throw new ValidationError('Log viewing is not available in this build');
+      }
+      const output = await deps.readLogs(parsed.sessionName, parsed.options);
+      if (output) {
+        writeLine(stdout, output);
+      }
+      return 0;
+    }
+    case 'attach': {
+      if (deps.attachInstructions) {
+        writeLine(stdout, await deps.attachInstructions(parsed.sessionName));
+      } else {
+        const session = deps.sessionService.getSessionInfo(parsed.sessionName);
+        const sshParts = ['ssh'];
+        if (session.port !== 22) {
+          sshParts.push('-p', String(session.port));
+        }
+        sshParts.push(
+          '-t',
+          `${session.username}@${session.host}`,
+          `"tmux attach -t ssh-cli-${parsed.sessionName} || tmux new -s ssh-cli-${parsed.sessionName}"`,
+        );
+        writeLine(stdout, `Run: ${sshParts.join(' ')}`);
+      }
+      return 0;
+    }
+    case 'mcp':
+      if (!deps.runMcpMode) {
+        throw new ValidationError('MCP mode is not available in this build');
+      }
+      await deps.runMcpMode(parsed.args);
+      return 0;
+  }
+}

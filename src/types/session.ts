@@ -12,3 +12,8 @@ export type SessionInfo = {
   lastCommand: string | null;
   disposed: boolean;
 };
+
+export type ActiveSessionInfo = SessionInfo & {
+  status: 'active';
+  logPath: string;
+};

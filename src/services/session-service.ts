@@ -1,15 +1,41 @@
+import { appendFile, chmod, mkdir } from 'node:fs/promises';
+import os from 'node:os';
+import { resolve as resolvePath } from 'node:path';
 import { randomUUID } from 'node:crypto';
-
 import type { ClientChannel, ConnectConfig } from 'ssh2';
 import SSH2Module from 'ssh2';
 
 import { getMaxInactivityMs } from '../config.js';
 import { SessionBusyError, SessionError, SessionExistsError, SessionNotFoundError } from '../errors.js';
-import type { CommandResult, SessionInfo } from '../types/session.js';
+import type { DeadSessionInfo } from '../types/dead-session.js';
+import type { ActiveSessionInfo, CommandResult, SessionInfo } from '../types/session.js';
 
 const { Client: SSHClient } = SSH2Module as typeof import('ssh2');
 
-class PersistentSession {
+const DEFAULT_LOGS_DIR = resolvePath(os.homedir(), '.ssh-cli-sessions', 'logs');
+
+type SessionFactory = (args: {
+  id: string;
+  config: ConnectConfig;
+  timeoutMs: number;
+  logPath: string;
+  onDisposed: (id: string) => void;
+  onUnexpectedDeath: (info: SessionInfo, reason: string) => void;
+}) => SessionHandle;
+
+interface SessionHandle {
+  getInfo(): SessionInfo;
+  ensureConnected(): Promise<void>;
+  execute(command: string): Promise<CommandResult>;
+  dispose(): void;
+}
+
+export type SessionServiceOptions = {
+  logsDir?: string;
+  sessionFactory?: SessionFactory;
+};
+
+class PersistentSession implements SessionHandle {
   private conn: InstanceType<typeof SSHClient> | null = null;
   private shell: ClientChannel | null = null;
   private buffer = '';
@@ -20,6 +46,7 @@ class PersistentSession {
   } | null = null;
   private inactivityTimer: NodeJS.Timeout | null = null;
   private disposed = false;
+  private terminated = false;
   private readonly createdAt = Date.now();
   private lastCommand: string | null = null;
 
@@ -27,7 +54,8 @@ class PersistentSession {
     private readonly id: string,
     private readonly config: ConnectConfig,
     private readonly timeoutMs: number,
-    private readonly onDispose?: (id: string) => void,
+    private readonly onDisposed: (id: string) => void,
+    private readonly onUnexpectedDeath: (info: SessionInfo, reason: string) => void,
   ) {}
 
   getInfo(): SessionInfo {
@@ -44,7 +72,7 @@ class PersistentSession {
 
   async ensureConnected(): Promise<void> {
     if (this.disposed) {
-      throw new SessionError(`Session ${this.id} has been disposed`);
+      throw new SessionError(`Session '${this.id}' has been disposed`);
     }
     if (this.conn && this.shell) {
       return;
@@ -72,12 +100,12 @@ class PersistentSession {
             this.buffer += data;
             this.processPending();
           });
-          stream.on('close', () => {
-            this.cleanup();
-          });
           stream.stderr?.on('data', (data: string) => {
             this.buffer += data;
             this.processPending();
+          });
+          stream.on('close', () => {
+            this.cleanup(new Error('SSH shell closed unexpectedly'));
           });
 
           stream.write('export PS1=""\n');
@@ -86,8 +114,9 @@ class PersistentSession {
         });
       });
 
-      conn.once('error', handleError);
-      conn.once('end', () => this.cleanup());
+      conn.once('error', (error) => handleError(error));
+      conn.once('end', () => this.cleanup(new Error('SSH connection ended unexpectedly')));
+      conn.once('close', () => this.cleanup(new Error('SSH connection closed unexpectedly')));
       conn.connect(this.config);
     });
 
@@ -108,7 +137,7 @@ class PersistentSession {
     this.resetInactivityTimer();
 
     const token = randomUUID();
-    const marker = `__SSH_CLI_DONE__${token}__`;
+    const marker = `__MCP_DONE__${token}__`;
 
     return new Promise((resolve, reject) => {
       this.pendingCommand = {
@@ -136,6 +165,7 @@ class PersistentSession {
     if (this.disposed) {
       return;
     }
+
     this.disposed = true;
     this.cleanup();
   }
@@ -146,7 +176,7 @@ class PersistentSession {
     }
 
     this.inactivityTimer = setTimeout(() => {
-      this.dispose();
+      this.cleanup(new Error(`Session timed out after ${this.timeoutMs}ms of inactivity`));
     }, this.timeoutMs);
   }
 
@@ -191,6 +221,11 @@ class PersistentSession {
   }
 
   private cleanup(error?: Error): void {
+    if (this.terminated) {
+      return;
+    }
+    this.terminated = true;
+
     if (this.inactivityTimer) {
       clearTimeout(this.inactivityTimer);
       this.inactivityTimer = null;
@@ -216,50 +251,111 @@ class PersistentSession {
     this.buffer = '';
 
     if (this.disposed) {
-      this.onDispose?.(this.id);
+      this.onDisposed(this.id);
+      return;
     }
+
+    const reason = error?.message ?? 'SSH session closed unexpectedly';
+    this.onUnexpectedDeath(this.getInfo(), reason);
   }
 }
 
 export class SessionService {
-  private readonly activeSessions = new Map<string, PersistentSession>();
+  private readonly activeSessions = new Map<string, SessionHandle>();
+  private readonly deadSessions = new Map<string, DeadSessionInfo>();
+  private readonly notifications: string[] = [];
+  private readonly logsDir: string;
+  private readonly sessionFactory: SessionFactory;
 
-  constructor(private readonly timeoutMs = getMaxInactivityMs()) {}
+  constructor(
+    private readonly timeoutMs = getMaxInactivityMs(),
+    options: SessionServiceOptions = {},
+  ) {
+    this.logsDir = options.logsDir ?? DEFAULT_LOGS_DIR;
+    this.sessionFactory =
+      options.sessionFactory ??
+      ((args) =>
+        new PersistentSession(args.id, args.config, args.timeoutMs, args.onDisposed, args.onUnexpectedDeath));
+  }
 
   async startSession(id: string, config: ConnectConfig): Promise<SessionInfo> {
-    const session = await this.getOrCreateSession(id, config, false, true);
+    const session = await this.getOrCreateSession(id, config, true);
     return session.getInfo();
   }
 
   async ensureSession(id: string, config: ConnectConfig): Promise<SessionInfo> {
-    const session = await this.getOrCreateSession(id, config, false, false);
+    const session = await this.getOrCreateSession(id, config, false);
     return session.getInfo();
   }
 
   async execute(id: string, command: string): Promise<CommandResult> {
     const session = this.activeSessions.get(id);
     if (!session) {
+      const dead = this.deadSessions.get(id);
+      if (dead) {
+        const message = this.buildDeadSessionMessage(dead);
+        this.pushNotification(`[session-dead] ${message}`);
+        throw new SessionError(message);
+      }
       throw new SessionNotFoundError(`Session '${id}' does not exist`);
     }
-    return session.execute(command);
+
+    await this.logEvent(id, `EXEC ${command}`);
+    try {
+      const result = await session.execute(command);
+      const summary = `RESULT exit=${result.exitCode} bytes=${Buffer.byteLength(result.output, 'utf8')}`;
+      await this.logEvent(id, summary);
+      if (result.output) {
+        await this.logEvent(id, `OUTPUT\n${result.output}`);
+      }
+      return result;
+    } catch (error) {
+      await this.logEvent(id, `ERROR ${(error as Error).message}`);
+      throw error;
+    }
   }
 
   async closeSession(id: string): Promise<void> {
     const session = this.activeSessions.get(id);
     if (!session) {
+      const dead = this.deadSessions.get(id);
+      if (dead) {
+        this.deadSessions.delete(id);
+        await this.logEvent(id, `CLOSE acknowledged dead session: ${dead.reason}`);
+        return;
+      }
       throw new SessionNotFoundError(`Session '${id}' does not exist`);
     }
+
+    await this.logEvent(id, 'CLOSE requested');
     session.dispose();
     this.activeSessions.delete(id);
+    await this.logEvent(id, 'CLOSE completed');
   }
 
-  listSessions(): SessionInfo[] {
-    return Array.from(this.activeSessions.values(), (session) => session.getInfo());
+  listSessions(): ActiveSessionInfo[] {
+    return Array.from(this.activeSessions.entries(), ([id, session]) => ({
+      ...session.getInfo(),
+      status: 'active' as const,
+      logPath: this.getLogPath(id),
+    }));
+  }
+
+  listDeadSessions(): DeadSessionInfo[] {
+    return Array.from(this.deadSessions.values()).sort((left, right) => right.detectedAt - left.detectedAt);
+  }
+
+  consumeNotifications(): string[] {
+    return this.notifications.splice(0, this.notifications.length);
   }
 
   getSessionInfo(id: string): SessionInfo {
     const session = this.activeSessions.get(id);
     if (!session) {
+      const dead = this.deadSessions.get(id);
+      if (dead) {
+        throw new SessionError(this.buildDeadSessionMessage(dead));
+      }
       throw new SessionNotFoundError(`Session '${id}' does not exist`);
     }
     return session.getInfo();
@@ -269,38 +365,114 @@ export class SessionService {
     return this.activeSessions.has(id);
   }
 
-  private async getOrCreateSession(
-    id: string,
-    config: ConnectConfig,
-    replaceExisting: boolean,
-    failIfExists: boolean,
-  ): Promise<PersistentSession> {
-    if (!id.trim()) {
+  async markSessionDead(id: string, reason: string): Promise<void> {
+    const session = this.activeSessions.get(id);
+    if (!session) {
+      return;
+    }
+
+    this.activeSessions.delete(id);
+    const info = session.getInfo();
+    const deadInfo = this.buildDeadSessionInfo(info, reason);
+    this.deadSessions.set(id, deadInfo);
+    this.pushNotification(`[session-dead] ${this.buildDeadSessionMessage(deadInfo)}`);
+    await this.logEvent(id, `DEAD ${reason}`);
+  }
+
+  private async getOrCreateSession(id: string, config: ConnectConfig, failIfExists: boolean): Promise<SessionHandle> {
+    const trimmedId = id.trim();
+    if (!trimmedId) {
       throw new SessionError('Session name is required');
     }
 
-    let session = this.activeSessions.get(id);
-    if (session && failIfExists) {
-      throw new SessionExistsError(`Session '${id}' already exists`);
+    const existing = this.activeSessions.get(trimmedId);
+    if (existing) {
+      if (failIfExists) {
+        throw new SessionExistsError(`Session '${trimmedId}' already exists`);
+      }
+      return existing;
     }
 
-    if (session && replaceExisting) {
-      session.dispose();
-      this.activeSessions.delete(id);
-      session = undefined;
+    this.deadSessions.delete(trimmedId);
+
+    const session = this.sessionFactory({
+      id: trimmedId,
+      config,
+      timeoutMs: this.timeoutMs,
+      logPath: this.getLogPath(trimmedId),
+      onDisposed: (disposedId) => {
+        this.activeSessions.delete(disposedId);
+      },
+      onUnexpectedDeath: (info, reason) => {
+        void this.handleUnexpectedDeath(info, reason);
+      },
+    });
+
+    this.activeSessions.set(trimmedId, session);
+    await this.logEvent(trimmedId, `START ${config.username ?? 'unknown'}@${config.host ?? 'unknown'}:${config.port ?? 22}`);
+
+    try {
+      await session.ensureConnected();
+      await this.logEvent(trimmedId, 'READY shell connected');
+      return session;
+    } catch (error) {
+      await this.handleUnexpectedDeath(session.getInfo(), (error as Error).message);
+      throw error;
+    }
+  }
+
+  private async handleUnexpectedDeath(info: SessionInfo, reason: string): Promise<void> {
+    const current = this.activeSessions.get(info.id);
+    if (!current) {
+      return;
     }
 
-    if (!session) {
-      session = new PersistentSession(id, config, this.timeoutMs, (disposedId) => {
-        if (this.activeSessions.get(disposedId) === session) {
-          this.activeSessions.delete(disposedId);
-        }
-      });
-      this.activeSessions.set(id, session);
+    this.activeSessions.delete(info.id);
+    const deadInfo = this.buildDeadSessionInfo(info, reason);
+    this.deadSessions.set(info.id, deadInfo);
+    this.pushNotification(`[session-dead] ${this.buildDeadSessionMessage(deadInfo)}`);
+    await this.logEvent(info.id, `DEAD ${reason}`);
+  }
+
+  private buildDeadSessionInfo(info: SessionInfo, reason: string): DeadSessionInfo {
+    return {
+      id: info.id,
+      host: info.host,
+      port: info.port,
+      username: info.username,
+      createdAt: info.createdAt,
+      lastCommand: info.lastCommand,
+      reason,
+      logPath: this.getLogPath(info.id),
+      detectedAt: Date.now(),
+    };
+  }
+
+  private buildDeadSessionMessage(dead: DeadSessionInfo): string {
+    return `Session '${dead.id}' is dead: ${dead.reason}. Log: ${dead.logPath}`;
+  }
+
+  private pushNotification(message: string): void {
+    if (this.notifications.at(-1) === message) {
+      return;
     }
 
-    await session.ensureConnected();
-    return session;
+    this.notifications.push(message);
+  }
+
+  private getLogPath(id: string): string {
+    return resolvePath(this.logsDir, `${id}.log`);
+  }
+
+  private async ensureLogsDir(): Promise<void> {
+    await mkdir(this.logsDir, { recursive: true, mode: 0o700 });
+    await chmod(this.logsDir, 0o700).catch(() => undefined);
+  }
+
+  private async logEvent(id: string, message: string): Promise<void> {
+    await this.ensureLogsDir();
+    const timestamp = new Date().toISOString();
+    await appendFile(this.getLogPath(id), `[${timestamp}] ${message}\n`, { encoding: 'utf8', mode: 0o600 });
   }
 }
 

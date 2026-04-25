@@ -1,8 +1,7 @@
 import { chmod, mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { resolve as resolvePath } from 'node:path';
-
+import { randomUUID } from 'node:crypto';
 import type { ConnectConfig } from 'ssh2';
 
 import { HostNotFoundError, HostStoreError } from '../errors.js';
@@ -39,7 +38,10 @@ export class HostStore {
     } catch (error: unknown) {
       const code = (error as NodeJS.ErrnoException | undefined)?.code;
       if (code !== 'ENOENT') {
-        throw error;
+        if (error instanceof HostStoreError) {
+          throw error;
+        }
+        throw new HostStoreError(`Failed to access hosts.json: ${(error as Error).message}`);
       }
 
       await this.writeWrapped({ hosts: [] });
@@ -82,7 +84,6 @@ export class HostStore {
     if (!host) {
       throw new HostNotFoundError(`Host '${hostId}' not found`);
     }
-
     return host;
   }
 
@@ -101,7 +102,6 @@ export class HostStore {
       if (!expanded) {
         throw new HostStoreError(`Invalid key path for host '${hostId}'`);
       }
-
       try {
         config.privateKey = await readFile(expanded, 'utf8');
       } catch (error) {
@@ -117,12 +117,8 @@ export class HostStore {
 
   private async writeWrapped(payload: { hosts: StoredHost[] }): Promise<void> {
     const tempFile = `${this.hostsFile}.${randomUUID()}.tmp`;
-
     try {
-      await writeFile(tempFile, JSON.stringify(payload, null, 2), {
-        encoding: 'utf8',
-        mode: 0o600,
-      });
+      await writeFile(tempFile, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 });
       await chmod(tempFile, 0o600).catch(() => undefined);
       await rename(tempFile, this.hostsFile);
       await chmod(this.hostsFile, 0o600).catch(() => undefined);

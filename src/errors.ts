@@ -18,3 +18,5 @@ export class SessionNotFoundError extends SessionError {}
 export class SessionExistsError extends SessionError {}
 
 export class SessionBusyError extends SessionError {}
+
+export class CLIError extends AppError {}

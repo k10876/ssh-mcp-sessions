@@ -1,19 +1,19 @@
 {
-  "name": "ssh-mcp-sessions",
+  "name": "ssh-cli-sessions",
   "license": "MIT",
   "version": "1.0.17",
-  "description": "An MCP tool to manage persistent ssh connections to a collection of hosts enabling remote development, deployment, and information gathering.",
+  "description": "A Linux-first CLI SSH session manager with named persistent shells, session logs, and optional MCP mode.",
   "type": "module",
   "bin": {
-    "ssh-mcp-sessions": "build/index.js"
+    "ssh-cli": "build/index.js"
   },
   "scripts": {
     "prepare": "npm run build",
     "build": "tsc && shx chmod +x build/*.js",
-    "inspect": "npx @modelcontextprotocol/inspector node build/index.js",
-    "test": "cross-env SSH_MCP_DISABLE_MAIN=1 vitest --run",
-    "test:watch": "cross-env SSH_MCP_DISABLE_MAIN=1 vitest",
-    "coverage": "cross-env SSH_MCP_DISABLE_MAIN=1 vitest --run --coverage"
+    "inspect": "npx @modelcontextprotocol/inspector node build/index.js mcp",
+    "test": "cross-env SSH_MCP_DISABLE_MAIN=1 SSH_CLI_DISABLE_MAIN=1 vitest --run",
+    "test:watch": "cross-env SSH_MCP_DISABLE_MAIN=1 SSH_CLI_DISABLE_MAIN=1 vitest",
+    "coverage": "cross-env SSH_MCP_DISABLE_MAIN=1 SSH_CLI_DISABLE_MAIN=1 vitest --run --coverage"
   },
   "files": [
     "build"
@@ -34,24 +34,24 @@
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
   },
-  "homepage": "https://github.com/fryjustinc/ssh-mcp-sessions#readme",
+  "homepage": "https://github.com/fryjustinc/ssh-cli-sessions#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/fryjustinc/ssh-mcp-sessions.git"
+    "url": "https://github.com/fryjustinc/ssh-cli-sessions.git"
   },
   "bugs": {
-    "url": "https://github.com/fryjustinc/ssh-mcp-sessions/issues"
+    "url": "https://github.com/fryjustinc/ssh-cli-sessions/issues"
   },
   "keywords": [
     "ssh",
+    "cli",
+    "linux",
+    "session-manager",
+    "persistent-shell",
+    "remote",
+    "automation",
     "mcp",
     "model-context-protocol",
-    "server",
-    "windows",
-    "linux",
-    "automation",
-    "remote",
-    "cli",
     "typescript"
   ],
   "author": "kryonas",
