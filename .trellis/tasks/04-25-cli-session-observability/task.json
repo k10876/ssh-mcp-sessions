@@ -3,7 +3,7 @@
   "name": "cli-session-observability",
   "title": "Session observability and death handling",
   "description": "Implement logs, dead-session state, disconnect detection, hook-style messages, and timeout behavior for CLI/MCP sessions.",
-  "status": "planning",
+  "status": "in_progress",
   "dev_type": "feature",
   "scope": null,
   "package": null,

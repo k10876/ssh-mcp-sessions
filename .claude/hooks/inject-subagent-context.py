@@ -62,6 +62,18 @@ AGENTS_REQUIRE_TASK = (AGENT_IMPLEMENT, AGENT_CHECK)
 # All supported agents
 AGENTS_ALL = (AGENT_IMPLEMENT, AGENT_CHECK, AGENT_RESEARCH)
 
+CODED_MESSAGE_PROTOCOL = """## Coded Message Delivery Protocol
+
+Important: stale notifications can be a delivery bug. Detailed results sent only as a reply to the lead may be invisible or delayed.
+
+- If the lead provided a code such as `agent-message-[word].md`, you MUST write your detailed result to that coded file.
+- Write the same detailed result to both destinations:
+  - `./agent-message-[word].md`
+  - `~/.claude/agent-msg/agent-message-[word].md`
+- Treat chat replies to the lead as unreliable for detailed handoff. Use the chat reply only as a short pointer.
+- If the lead did not provide a coded file name, state that the coded-file workflow is required and ask for the generated code/path instead of relying on chat-only delivery.
+"""
+
 
 def find_repo_root(start_path: str) -> str | None:
     """
@@ -333,7 +345,9 @@ All the information you need has been prepared for you:
 
 - Do NOT execute git commit, only code modifications
 - Follow all dev specs injected above
-- Report list of modified/created files when done"""
+- Report list of modified/created files when done
+
+{CODED_MESSAGE_PROTOCOL}"""
 
 
 def build_check_prompt(original_prompt: str, context: str) -> str:
@@ -367,7 +381,9 @@ All check specs and dev specs you need:
 
 - Fix issues yourself, don't just report
 - Must execute complete checklist in check specs
-- Pay special attention to impact radius analysis (L1-L5)"""
+- Pay special attention to impact radius analysis (L1-L5)
+
+{CODED_MESSAGE_PROTOCOL}"""
 
 
 def build_finish_prompt(original_prompt: str, context: str) -> str:
@@ -407,7 +423,9 @@ Finish checklist and requirements:
 - MUST read the target spec file BEFORE editing (avoid duplicating existing content)
 - Do NOT update specs for trivial changes (typos, formatting, obvious fixes)
 - If critical CODE issues found, report them clearly (fix specs, not code)
-- Verify all acceptance criteria in prd.md are met"""
+- Verify all acceptance criteria in prd.md are met
+
+{CODED_MESSAGE_PROTOCOL}"""
 
 
 
@@ -514,7 +532,9 @@ Provide structured search results including:
 - List of files found (with paths)
 - Code pattern analysis (if applicable)
 - Related spec documents
-- External references (if any)"""
+- External references (if any)
+
+{CODED_MESSAGE_PROTOCOL}"""
 
 
 def _parse_hook_input(input_data: dict) -> tuple[str, str, dict]:

@@ -137,6 +137,29 @@ Phase 3: Finish  → distill lessons + wrap-up
 3. Phases can roll back (e.g., Execute reveals a prd defect → return to Plan to fix, then re-enter Execute)
 4. Steps tagged `[once]` are skipped if already done; don't re-run
 
+### Agent File Handoff Protocol
+
+When using agent teams or sub-agents in this repository, do not rely on detailed chat replies reaching the lead. Detailed results must be delivered through coded files named `agent-message-[word].md`.
+
+Lead workflow:
+
+1. Run `bash ./.claude/skills/trellis-local/generate-agent-message-code.sh` to generate a fresh code and expected file name.
+2. Use that exact code in the agent prompt and name both expected files explicitly.
+3. Ensure both destinations exist or can be created safely:
+   - `./agent-message-[word].md`
+   - `~/.claude/agent-msg/agent-message-[word].md`
+4. Create `~/.claude/agent-msg/` first if it is missing.
+5. Tell the agent to write its detailed handoff to both files and keep any direct reply concise.
+6. If you get a stale notification or no detailed reply, stale delivery may be the known bug. Read the coded file before assuming the agent failed to respond.
+7. If an expected coded message file is missing, treat that as an error and repeat the coded-message workflow with a fresh code.
+
+Team-member workflow:
+
+1. Treat detailed replies to the lead as unreliable delivery.
+2. Write the detailed result to the coded file in the project root.
+3. Write the same detailed result to `~/.claude/agent-msg/agent-message-[word].md`.
+4. Use a brief chat reply only as a pointer to the coded file.
+
 ### Skill Routing
 
 When a user request matches one of these intents, load the corresponding skill (or dispatch the corresponding sub-agent) first — do not skip skills.
@@ -507,6 +530,7 @@ Research belongs in `{task_dir}/research/*.md`, written by `trellis-research` su
 Flow: trellis-implement → trellis-check → trellis-update-spec → finish
 Next required action: inspect conversation history + git status, then execute the next uncompleted step in that sequence.
 For agent-capable platforms, do NOT edit code in the main session; dispatch `trellis-implement` for implementation and dispatch `trellis-check` before reporting completion.
+Agent message reminder: if an agent notification looks stale, it may be the delivery bug; read the expected coded `agent-message-[word].md` file in the project root or `~/.claude/agent-msg/` before assuming no response. If the expected coded file is missing, treat that as an error and repeat the coded-message workflow with a fresh code.
 [/workflow-state:in_progress]
 
 [workflow-state:completed]

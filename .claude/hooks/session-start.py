@@ -21,6 +21,18 @@ On the first visible assistant reply in this session, notify the user that trell
 Then continue directly with the user's request. This notice is one-shot: do not repeat it after the first assistant reply in the same session.
 </first-reply-notice>"""
 
+AGENT_MESSAGE_NOTICE = """<agent-message-protocol>
+Agent-team delivery in this repository uses coded files because stale notifications may be a delivery bug.
+If you lead agents here:
+- create missing folders first when needed, especially `~/.claude/agent-msg/`
+- run `bash ./.claude/skills/trellis-local/generate-agent-message-code.sh`
+- use the generated code in agent prompts and require detailed handoff files in both places:
+  - `./agent-message-[word].md`
+  - `~/.claude/agent-msg/agent-message-[word].md`
+- read the coded file before assuming an agent did not respond
+- if the expected coded message file is missing, treat that as an error and repeat the coded-message workflow with a fresh code
+</agent-message-protocol>"""
+
 # IMPORTANT: Force stdout to use UTF-8 on Windows
 # This fixes UnicodeEncodeError when outputting non-ASCII characters
 if sys.platform.startswith("win"):
@@ -474,6 +486,8 @@ Read and follow all instructions below carefully.
 
 """)
     output.write(FIRST_REPLY_NOTICE)
+    output.write("\n\n")
+    output.write(AGENT_MESSAGE_NOTICE)
     output.write("\n\n")
 
     # Legacy migration warning

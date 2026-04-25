@@ -37,6 +37,13 @@ Project-local Trellis guidance adds three default process expectations: use TDD 
 ### 2026-04-25
 
 - `.trellis/workflow.md`
+  - Added the Agent File Handoff Protocol requiring coded `agent-message-[word].md` files for detailed agent-team results.
+  - Added lead workflow steps: generate a fresh code, ensure project-root and `~/.claude/agent-msg/` destinations, require dual-write handoffs, read coded files after stale notifications, and repeat with a fresh code if expected files are missing.
+  - Added team-member workflow steps: treat detailed replies to the lead as unreliable, write detailed results to both coded files, and keep chat replies as pointers only.
+
+### 2026-04-25
+
+- `.trellis/workflow.md`
   - Added TDD and worktree isolation to the core principles.
   - Expanded the spec-system description so shared guides explicitly include TDD and worktree isolation.
   - Updated Phase 1 context curation guidance so implement/check context can include the new shared guides when relevant.
@@ -44,9 +51,30 @@ Project-local Trellis guidance adds three default process expectations: use TDD 
   - Added concise model-selection guidance so lighter tiers are preferred for low-stakes operational loops and stronger tiers for demanding reasoning work.
   - Added broad tier examples that fit this environment, such as Haiku-class for monitoring/debug loops and Sonnet/Opus-class for demanding requirement, implementation, review, and design work.
 
+## Hooks Changed
+
+### 2026-04-25
+
+- `.claude/hooks/session-start.py`
+  - Added a lead-facing coded message protocol reminder to SessionStart context.
+  - Reminds leads to create `~/.claude/agent-msg/`, generate a fresh code, require dual-write handoffs, and read coded files after stale notifications.
+- `.claude/hooks/inject-subagent-context.py`
+  - Injects the coded message delivery protocol into `trellis-implement`, `trellis-check`, finish-check, and `trellis-research` prompts.
+  - Tells team members that detailed chat replies to leads are unreliable and detailed results must be written to both coded files.
+- `.claude/hooks/inject-workflow-state.py`
+  - Adds a per-turn breadcrumb reminder that stale agent notifications may be the delivery bug and expected coded files should be read before assuming no response.
+
+## Scripts Added
+
+### 2026-04-25
+
+- `.claude/skills/trellis-local/generate-agent-message-code.sh`
+  - Generates a fresh word code and prints the expected `agent-message-[word].md` filename plus project-root and `~/.claude/agent-msg/` destinations.
+
 ## Why These Customizations Exist
 
 - TDD keeps behavior changes anchored to executable proof instead of memory.
 - Worktree guidance reduces accidental disruption when parallel work or isolation matters.
 - Model-tier guidance helps control cost and latency without underpowering demanding work.
+- Coded agent-message handoffs prevent lost details when Claude Code team notifications arrive without the teammate's actual response body.
 - Recording these rules in shared Trellis docs makes them visible to future implement/check flows instead of relying on one-off reminders.
