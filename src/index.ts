@@ -50,10 +50,6 @@ export function createMcpServer(): McpServer {
   const server = new McpServer({
     name: 'ssh-cli-sessions',
     version: '1.0.17',
-    capabilities: {
-      resources: {},
-      tools: {},
-    },
   });
 
   server.tool(

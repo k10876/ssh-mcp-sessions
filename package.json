@@ -9,7 +9,8 @@
   },
   "scripts": {
     "prepare": "npm run build",
-    "build": "tsc && shx chmod +x build/*.js",
+    "build": "node ./scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
     "inspect": "npx @modelcontextprotocol/inspector node build/index.js mcp",
     "test": "cross-env SSH_MCP_DISABLE_MAIN=1 SSH_CLI_DISABLE_MAIN=1 vitest --run --exclude '.claude/worktrees/**'",
     "test:watch": "cross-env SSH_MCP_DISABLE_MAIN=1 SSH_CLI_DISABLE_MAIN=1 vitest --exclude '.claude/worktrees/**'",

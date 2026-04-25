@@ -3,12 +3,14 @@
     "target": "ES2022",
     "module": "Node16",
     "moduleResolution": "Node16",
+    "lib": ["ES2022"],
     "outDir": "./build",
     "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": ["node", "ssh2"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
