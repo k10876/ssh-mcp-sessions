@@ -38,3 +38,36 @@ Completed and checked the core backend extraction in worktree-agent-a8008b20771f
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: Fix ssh-cli start and attach workflows
+
+**Date**: 2026-05-02
+**Task**: Fix ssh-cli start and attach workflows
+**Branch**: `main`
+
+### Summary
+
+Added daemon-backed CLI session persistence, removed MCP, moved attach to local tmux, and made attach reuse stored auth with explicit sshpass handling for password-backed hosts.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `<your-commit-hash>` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
