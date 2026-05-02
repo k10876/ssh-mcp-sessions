@@ -62,7 +62,12 @@ const FALLBACK_BREADCRUMBS = {
     "execute the next uncompleted step in that sequence.\n" +
     "For agent-capable platforms, do NOT edit code in the main session; " +
     "dispatch `trellis-implement` for implementation and dispatch " +
-    "`trellis-check` before reporting completion.",
+    "`trellis-check` before reporting completion.\n" +
+    "Agent message reminder: if an agent notification looks stale, it may be " +
+    "the delivery bug; read the expected coded `agent-message-[word].md` file " +
+    "in `~/.agent-messages/` before assuming no response. If the expected coded " +
+    "file is missing, treat that as an error and repeat the coded-message " +
+    "workflow with a fresh code.",
   completed:
     "User commits changes; then run task.py archive.",
 }

@@ -36,10 +36,14 @@ Project-local Trellis guidance adds three default process expectations: use TDD 
 
 ### 2026-04-25
 
-- `.trellis/workflow.md`
-  - Added the Agent File Handoff Protocol requiring coded `agent-message-[word].md` files for detailed agent-team results.
-  - Added lead workflow steps: generate a fresh code, ensure project-root and `~/.claude/agent-msg/` destinations, require dual-write handoffs, read coded files after stale notifications, and repeat with a fresh code if expected files are missing.
-  - Added team-member workflow steps: treat detailed replies to the lead as unreliable, write detailed results to both coded files, and keep chat replies as pointers only.
+- `.opencode/plugins/session-start.js`
+  - Added a lead-facing coded message protocol reminder to SessionStart context.
+  - Reminds leads to create `~/.agent-messages/`, generate a fresh code, and write handoffs to `~/.agent-messages/agent-message-[word].md`.
+- `.opencode/plugins/inject-subagent-context.js`
+  - Injects the coded message delivery protocol into `trellis-implement`, `trellis-check`, and `trellis-research` prompts.
+  - Tells team members that detailed chat replies to leads are unreliable and detailed results must be written to `~/.agent-messages/agent-message-[word].md`.
+- `.opencode/plugins/inject-workflow-state.js`
+  - Adds a per-turn breadcrumb reminder that stale agent notifications may be the delivery bug and expected coded files should be read before assuming no response.
 
 ### 2026-04-25
 

@@ -13,6 +13,14 @@ import { TrellisContext, debugLog } from "../lib/trellis-context.js"
 const AGENTS_ALL = ["implement", "check", "research"]
 const AGENTS_REQUIRE_TASK = ["implement", "check"]
 
+const AGENT_MESSAGE_NOTICE = `<agent-message-protocol>
+Agent-team delivery in this repository uses coded files because stale notifications may be a delivery bug.
+
+- If the lead provided a code such as \\`agent-message-[word].md\\`, you MUST write your detailed result to \\`~/.agent-messages/agent-message-[word].md\\`.
+- Treat chat replies to the lead as unreliable for detailed handoff. Use the chat reply only as a short pointer.
+- If the lead did not provide a coded file name, state that the coded-file workflow is required and ask for the generated code/path instead of relying on chat-only delivery.
+</agent-message-protocol>`
+
 /**
  * Get context for implement agent
  */
@@ -126,6 +134,7 @@ function getResearchContext(ctx) {
  * Build enhanced prompt with context
  */
 function buildPrompt(agentType, originalPrompt, context, isFinish = false) {
+  const notice = `${AGENT_MESSAGE_NOTICE}\n\n`
   const templates = {
     implement: `# Implement Agent Task
 
@@ -252,7 +261,7 @@ ${originalPrompt}
 **Forbidden**: Suggest improvements, criticize implementation, modify files`
   }
 
-  return templates[agentType] || originalPrompt
+  return notice + (templates[agentType] || originalPrompt)
 }
 
 // OpenCode plugin factory: `export default async (input) => hooks`.

@@ -20,6 +20,15 @@ Trellis SessionStart 已注入：workflow、当前任务状态、开发者身份
 Then continue directly with the user's request. This notice is one-shot: do not repeat it after the first assistant reply in the same session.
 </first-reply-notice>`
 
+const AGENT_MESSAGE_NOTICE = `<agent-message-protocol>
+Agent-team delivery in this repository uses coded files because stale notifications may be a delivery bug.
+If you lead agents here:
+- create missing folders first when needed, especially \\`~/.agent-messages/\\`
+- use the generated code in agent prompts and require detailed handoff files in \\`~/.agent-messages/agent-message-[word].md\\`
+- read the coded file before assuming an agent did not respond
+- if the expected coded message file is missing, treat that as an error and repeat the coded-message workflow with a fresh code
+</agent-message-protocol>`
+
 
 /**
  * Return true iff jsonl has at least one row with a `file` field.
@@ -241,6 +250,7 @@ You are starting a new session in a Trellis-managed project.
 Read and follow all instructions below carefully.
 </trellis-context>`)
   parts.push(FIRST_REPLY_NOTICE)
+  parts.push(AGENT_MESSAGE_NOTICE)
 
   // Legacy migration warning
   const legacyWarning = checkLegacySpec(directory, config)
