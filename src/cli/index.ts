@@ -8,6 +8,7 @@ import { createAttachSession, readSessionLogs } from './io.js';
 import { readPackageVersion, resolveExecutableName } from './formatting.js';
 import { parseCliArgs } from './parse.js';
 import { runCliCommand } from './run.js';
+import { createTransferHandlers, createTransferLogger } from './transfer.js';
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const packageJsonPath = resolvePath(currentDir, '..', '..', 'package.json');
@@ -17,6 +18,10 @@ export async function runCli(argv: string[]): Promise<number> {
   const executableName = resolveExecutableName(process.argv[1]);
   const parsed = parseCliArgs(argv);
   const sessionRepository = createDaemonSessionRepository();
+  const transferHandlers = createTransferHandlers({
+    getConnectConfig: (hostId) => defaultHostStore.getConnectConfig(hostId),
+    logger: createTransferLogger(),
+  });
 
   return runCliCommand(parsed, {
     hostStore: defaultHostStore,
@@ -32,6 +37,8 @@ export async function runCli(argv: string[]): Promise<number> {
       sessionService: sessionRepository,
       env: process.env,
     }),
+    putPath: transferHandlers.putPath,
+    getPath: transferHandlers.getPath,
   });
 }
 

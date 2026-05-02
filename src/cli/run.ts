@@ -1,9 +1,13 @@
+import { readFile } from 'node:fs/promises';
+import type { CliTransferOptions } from './types.js';
 import type { ConnectConfig } from 'ssh2';
 
-import { ValidationError } from '../errors.js';
+import { compileExecReminderRules, getMatchingExecReminders, loadUserConfig } from '../config.js';
+import { CLIError, ValidationError } from '../errors.js';
 import type { DeadSessionInfo } from '../types/dead-session.js';
 import type { ActiveSessionInfo, CommandResult, SessionInfo } from '../types/session.js';
 import type { StoredHost } from '../types/host.js';
+import { sanitizeCommand } from '../utils/command-utils.js';
 import { createAttachFallbackMessage } from './io.js';
 
 export interface HostRepository {
@@ -33,6 +37,9 @@ export type CliDependencies = {
   executableName?: string;
   readLogs?: (sessionName: string, options: { lines?: number; follow: boolean }) => Promise<string>;
   attachSession?: (sessionName: string) => Promise<void>;
+  putPath?: (options: CliTransferOptions) => Promise<string>;
+  getPath?: (options: CliTransferOptions) => Promise<string>;
+  loadUserConfig?: typeof loadUserConfig;
 };
 
 function writeLine(stream: Pick<NodeJS.WriteStream, 'write'>, text: string): void {
@@ -98,9 +105,18 @@ export async function runCliCommand(parsed: import('./types.js').ParsedCliComman
         writeLine(stderr, '[ai-auto] AI auto mode hook enabled; proceeding without external review provider');
       }
 
-      const result = await deps.sessionService.execute(parsed.sessionName, parsed.command);
-      if (result.output) {
-        writeLine(stdout, result.output);
+      const command = parsed.options.filePath
+        ? await readCommandFile(parsed.options.filePath)
+        : sanitizeCommand(parsed.command);
+      const userConfig = await (deps.loadUserConfig ?? loadUserConfig)();
+      const reminderRules = compileExecReminderRules(userConfig.exec.reminders);
+
+      const result = await deps.sessionService.execute(parsed.sessionName, command);
+      const reminders = getMatchingExecReminders(command, result.output, reminderRules);
+      const renderedOutput = renderExecOutputWithReminders(result.output, reminders);
+
+      if (renderedOutput) {
+        writeLine(stdout, renderedOutput);
       }
       if (result.exitCode !== 0) {
         writeLine(stderr, `Command failed in session '${parsed.sessionName}' with exit code ${result.exitCode}`);
@@ -181,5 +197,41 @@ export async function runCliCommand(parsed: import('./types.js').ParsedCliComman
       }
       return 0;
     }
+    case 'put': {
+      if (!deps.putPath) {
+        throw new ValidationError('File upload is not available in this build');
+      }
+      writeLine(stdout, await deps.putPath(parsed.options));
+      return 0;
+    }
+    case 'get': {
+      if (!deps.getPath) {
+        throw new ValidationError('File download is not available in this build');
+      }
+      writeLine(stdout, await deps.getPath(parsed.options));
+      return 0;
+    }
   }
+}
+
+async function readCommandFile(filePath: string): Promise<string> {
+  try {
+    const raw = await readFile(filePath, 'utf8');
+    return sanitizeCommand(raw, { preserveWhitespace: true });
+  } catch (error) {
+    throw new CLIError(`Failed to read exec command file '${filePath}': ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function renderExecOutputWithReminders(output: string, reminders: string[]): string {
+  if (reminders.length === 0) {
+    return output;
+  }
+
+  const reminderBlock = reminders.join('\n');
+  if (!output) {
+    return reminderBlock;
+  }
+
+  return `${output}\n${reminderBlock}`;
 }

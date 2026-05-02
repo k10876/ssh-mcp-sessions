@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import { join } from 'node:path';
 
 import { CLIError, ValidationError } from '../src/errors.js';
 import { createAttachFallbackMessage, createAttachSession } from '../src/cli/io.js';
 import { parseCliArgs } from '../src/cli/parse.js';
 import { runCliCommand, type CliDependencies } from '../src/cli/run.js';
+import type { CliTransferOptions } from '../src/cli/types.js';
 import type { StoredHost } from '../src/types/host.js';
 
 function createDeps(overrides: Partial<CliDependencies> = {}): CliDependencies {
@@ -56,6 +60,8 @@ function createDeps(overrides: Partial<CliDependencies> = {}): CliDependencies {
     stderr: { write: (chunk: string) => void (stderrText += chunk) },
     readLogs: vi.fn(async () => 'line1\nline2'),
     attachSession: vi.fn(async () => undefined),
+    putPath: vi.fn(async (_options: CliTransferOptions) => "Uploaded '/tmp/file.txt' to 'dev:/remote/file.txt'"),
+    getPath: vi.fn(async (_options: CliTransferOptions) => "Downloaded 'dev:/remote/file.txt' to '/tmp/file.txt'"),
     ...overrides,
     get __stdout() {
       return stdoutText;
@@ -96,6 +102,15 @@ describe('cli parsing', () => {
     });
   });
 
+  it('parses exec file mode', () => {
+    expect(parseCliArgs(['exec', 'dev-shell', '--auto', '--file', './script.sh'])).toEqual({
+      kind: 'exec',
+      sessionName: 'dev-shell',
+      command: '',
+      options: { auto: true, filePath: './script.sh' },
+    });
+  });
+
   it('parses list aliases and logs options', () => {
     expect(parseCliArgs(['ps'])).toEqual({ kind: 'list' });
     expect(parseCliArgs(['logs', 'dev-shell', '--lines', '50', '--follow'])).toEqual({
@@ -105,20 +120,52 @@ describe('cli parsing', () => {
     });
   });
 
+  it('parses put and get transfer commands', () => {
+    expect(parseCliArgs(['put', '--host', 'dev', './local.txt', '/tmp/remote.txt'])).toEqual({
+      kind: 'put',
+      options: { host: 'dev', sourcePath: './local.txt', destinationPath: '/tmp/remote.txt', recursive: false },
+    });
+
+    expect(parseCliArgs(['get', '--host', 'dev', '--recursive', '/var/data', './downloads'])).toEqual({
+      kind: 'get',
+      options: { host: 'dev', sourcePath: '/var/data', destinationPath: './downloads', recursive: true },
+    });
+  });
+
   it('rejects invalid host syntax', () => {
     expect(() => parseCliArgs(['add-host', 'dev', '--host', 'example.com'])).toThrow('Host must be in the form user@host');
   });
 
   it('rejects missing exec commands', () => {
-    expect(() => parseCliArgs(['exec', 'dev-shell'])).toThrow('exec requires a session name and command');
+    expect(() => parseCliArgs(['exec', 'dev-shell'])).toThrow('exec requires a command or --file <path>');
+  });
+
+  it('rejects mixing exec file mode with inline command text', () => {
+    expect(() => parseCliArgs(['exec', 'dev-shell', '--file', './script.sh', 'pwd'])).toThrow(
+      'exec accepts either inline command text or --file <path>, not both',
+    );
   });
 
   it('rejects blank session names for start', () => {
     expect(() => parseCliArgs(['start', '   ', '--host', 'dev'])).toThrow('start requires a session name');
   });
+
+  it('rejects transfer commands without host or paths', () => {
+    expect(() => parseCliArgs(['put', './local.txt', '/tmp/remote.txt'])).toThrow('put requires --host <host>');
+    expect(() => parseCliArgs(['get', '--host', 'dev', '/tmp/remote.txt'])).toThrow('get requires a source path and destination path');
+  });
 });
 
 describe('cli dispatch', () => {
+  let tempDir = '';
+
+  afterEach(async () => {
+    if (tempDir) {
+      await rm(tempDir, { recursive: true, force: true });
+      tempDir = '';
+    }
+  });
+
   it('writes help output', async () => {
     const deps = createDeps();
 
@@ -200,6 +247,24 @@ describe('cli dispatch', () => {
     expect(deps.__stderr).toContain('exit code 7');
   });
 
+  it('reads exec command text from a file and preserves exact contents', async () => {
+    tempDir = await mkdtemp(join(os.tmpdir(), 'ssh-cli-exec-file-'));
+    const commandFile = join(tempDir, 'command.sh');
+    const commandText = `printf "hello\\n"
+printf "%s" "a$[]{};&|<>"\n`;
+    await writeFile(commandFile, commandText, 'utf8');
+
+    const deps = createDeps();
+
+    const exitCode = await runCliCommand(
+      { kind: 'exec', sessionName: 'dev-shell', command: '', options: { auto: false, filePath: commandFile } },
+      deps,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(deps.sessionService.execute).toHaveBeenCalledWith('dev-shell', commandText);
+  });
+
   it('lists sessions and hosts', async () => {
     const deps = createDeps({
       hostStore: {
@@ -277,6 +342,44 @@ describe('cli dispatch', () => {
     expect(deps.sessionService.closeSession).toHaveBeenCalledWith('dev-shell');
     expect(deps.readLogs).toHaveBeenCalledWith('dev-shell', { lines: 10, follow: false });
     expect(deps.attachSession).toHaveBeenCalledWith('dev-shell');
+  });
+
+  it('dispatches put and get transfer handlers', async () => {
+    const deps = createDeps();
+
+    await expect(
+      runCliCommand(
+        {
+          kind: 'put',
+          options: { host: 'dev', sourcePath: './local.txt', destinationPath: '/tmp/remote.txt', recursive: false },
+        },
+        deps,
+      ),
+    ).resolves.toBe(0);
+    await expect(
+      runCliCommand(
+        {
+          kind: 'get',
+          options: { host: 'dev', sourcePath: '/tmp/remote.txt', destinationPath: './local.txt', recursive: false },
+        },
+        deps,
+      ),
+    ).resolves.toBe(0);
+
+    expect(deps.putPath).toHaveBeenCalledWith({
+      host: 'dev',
+      sourcePath: './local.txt',
+      destinationPath: '/tmp/remote.txt',
+      recursive: false,
+    });
+    expect(deps.getPath).toHaveBeenCalledWith({
+      host: 'dev',
+      sourcePath: '/tmp/remote.txt',
+      destinationPath: './local.txt',
+      recursive: false,
+    });
+    expect(deps.__stdout).toContain("Uploaded '/tmp/file.txt' to 'dev:/remote/file.txt'");
+    expect(deps.__stdout).toContain("Downloaded 'dev:/remote/file.txt' to '/tmp/file.txt'");
   });
 
   it('prints the local tmux fallback message when no attach handler is available', async () => {

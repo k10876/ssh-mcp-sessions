@@ -6,7 +6,7 @@ import type { ClientChannel, ConnectConfig } from 'ssh2';
 import SSH2Module from 'ssh2';
 
 import { getMaxInactivityMs } from '../config.js';
-import { SessionBusyError, SessionError, SessionExistsError, SessionNotFoundError } from '../errors.js';
+import { SessionError, SessionExistsError, SessionNotFoundError } from '../errors.js';
 import type { DeadSessionInfo } from '../types/dead-session.js';
 import type { ActiveSessionInfo, CommandResult, SessionInfo } from '../types/session.js';
 
@@ -39,6 +39,7 @@ class PersistentSession implements SessionHandle {
   private conn: InstanceType<typeof SSHClient> | null = null;
   private shell: ClientChannel | null = null;
   private buffer = '';
+  private commandQueue: Promise<void> = Promise.resolve();
   private pendingCommand: {
     resolve: (result: CommandResult) => void;
     reject: (error: Error) => void;
@@ -47,6 +48,7 @@ class PersistentSession implements SessionHandle {
   private inactivityTimer: NodeJS.Timeout | null = null;
   private disposed = false;
   private terminated = false;
+  private terminalError: Error | null = null;
   private readonly createdAt = Date.now();
   private lastCommand: string | null = null;
 
@@ -73,6 +75,9 @@ class PersistentSession implements SessionHandle {
   async ensureConnected(): Promise<void> {
     if (this.disposed) {
       throw new SessionError(`Session '${this.id}' has been disposed`);
+    }
+    if (this.terminated) {
+      throw this.terminalError ?? new SessionError(`Session '${this.id}' is no longer available`);
     }
     if (this.conn && this.shell) {
       return;
@@ -124,41 +129,47 @@ class PersistentSession implements SessionHandle {
   }
 
   async execute(command: string): Promise<CommandResult> {
-    await this.ensureConnected();
+    const execution = this.commandQueue.then(async () => {
+      await this.ensureConnected();
 
-    if (!this.shell) {
-      throw new SessionError('SSH shell not ready');
-    }
-    if (this.pendingCommand) {
-      throw new SessionBusyError('Another command is still running in this session');
-    }
+      if (!this.shell) {
+        throw new SessionError('SSH shell not ready');
+      }
 
-    this.lastCommand = command;
-    this.resetInactivityTimer();
+      this.lastCommand = command;
+      this.resetInactivityTimer();
 
-    const token = randomUUID();
-    const marker = `__MCP_DONE__${token}__`;
+      const token = randomUUID();
+      const marker = `__MCP_DONE__${token}__`;
 
-    return new Promise((resolve, reject) => {
-      this.pendingCommand = {
-        marker,
-        resolve,
-        reject,
-      };
+      return new Promise<CommandResult>((resolve, reject) => {
+        this.pendingCommand = {
+          marker,
+          resolve,
+          reject,
+        };
 
-      const commandWithNewline = command.endsWith('\n') ? command : `${command}\n`;
-      this.shell!.write(commandWithNewline, (error) => {
-        if (error) {
-          this.rejectPending(error);
-          return;
-        }
-        this.shell!.write(`printf '${marker}%d\\n' $?\n`, (printfError) => {
-          if (printfError) {
-            this.rejectPending(printfError);
+        const commandWithNewline = command.endsWith('\n') ? command : `${command}\n`;
+        this.shell!.write(commandWithNewline, (error) => {
+          if (error) {
+            this.rejectPending(error);
+            return;
           }
+          this.shell!.write(`printf '${marker}%d\\n' $?\n`, (printfError) => {
+            if (printfError) {
+              this.rejectPending(printfError);
+            }
+          });
         });
       });
     });
+
+    this.commandQueue = execution.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    return execution;
   }
 
   dispose(): void {
@@ -225,6 +236,7 @@ class PersistentSession implements SessionHandle {
       return;
     }
     this.terminated = true;
+    this.terminalError = error ?? new Error('SSH session closed');
 
     if (this.inactivityTimer) {
       clearTimeout(this.inactivityTimer);

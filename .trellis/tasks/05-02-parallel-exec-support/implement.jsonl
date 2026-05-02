@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/session-management.md", "reason": "Session lifecycle and execute contract, including current concurrent-command rule that this task updates."}
+{"file": ".trellis/spec/backend/cli-interface.md", "reason": "CLI surface for exec, file-backed input, and user-facing reminder behavior."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Preserve missing/dead-session behavior while changing same-session overlap semantics."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Keep queued exec logging behavior consistent with existing session observability expectations."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Configuration parsing and validation should follow repo quality expectations."}

@@ -19,7 +19,6 @@ Backend services should throw protocol-neutral application errors. Interface lay
 - **SessionError**: Generic session lifecycle failure.
 - **SessionNotFoundError**: Requested session does not exist.
 - **SessionExistsError**: Attempted to create a duplicate named session.
-- **SessionBusyError**: Attempted to run a command while one is already pending.
 - **McpError**: Used only at the MCP adapter boundary.
 - **CLIError**: CLI-specific issues with user-friendly messages.
 
@@ -48,7 +47,6 @@ Backend services should throw protocol-neutral application errors. Interface lay
 - `class SessionError extends AppError`
 - `class SessionNotFoundError extends SessionError`
 - `class SessionExistsError extends SessionError`
-- `class SessionBusyError extends SessionError`
 - `toMcpError(error: unknown): McpError`
 
 ### 3. Contracts
@@ -56,7 +54,7 @@ Backend services should throw protocol-neutral application errors. Interface lay
 - MCP adapter mapping:
   - `ValidationError` -> `ErrorCode.InvalidParams`
   - `HostNotFoundError` / `SessionNotFoundError` -> `ErrorCode.InvalidParams`
-  - `SessionExistsError` / `SessionBusyError` -> `ErrorCode.InvalidRequest`
+  - `SessionExistsError` -> `ErrorCode.InvalidRequest`
   - `HostStoreError` / `SessionError` -> `ErrorCode.InternalError`
 - Wrapped fs errors must preserve resource context such as host id or file purpose.
 
@@ -66,7 +64,7 @@ Backend services should throw protocol-neutral application errors. Interface lay
 - malformed `hosts.json` or unreadable private key -> `HostStoreError`
 - duplicate named session -> `SessionExistsError`
 - missing session -> `SessionNotFoundError`
-- overlapping command execution -> `SessionBusyError`
+- overlapping command execution on a healthy live session -> queued by the session service, not surfaced as a caller-visible error
 - MCP boundary receives any app error -> mapped `McpError`
 
 ### 5. Good/Base/Bad Cases

@@ -3,7 +3,13 @@ import { ZodError } from 'zod';
 import { CLIError } from '../errors.js';
 import { sanitizeCommand } from '../utils/command-utils.js';
 import { consumeFlagValue, coerceNumberFlag } from './formatting.js';
-import { CliAddHostOptionsSchema, type CliExecOptions, type CliLogsOptions, type ParsedCliCommand } from './types.js';
+import {
+  CliAddHostOptionsSchema,
+  type CliExecOptions,
+  type CliLogsOptions,
+  type CliTransferOptions,
+  type ParsedCliCommand,
+} from './types.js';
 
 function parseHostTarget(target: string): { username: string; host: string } {
   const atIndex = target.indexOf('@');
@@ -59,9 +65,52 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
       return parseExec(rest);
     case 'logs':
       return parseLogs(rest);
+    case 'put':
+      return { kind: 'put', options: parseTransferArgs('put', rest) };
+    case 'get':
+      return { kind: 'get', options: parseTransferArgs('get', rest) };
     default:
       throw new CLIError(`Unknown command '${command}'. Run 'ssh-cli help' for usage.`);
   }
+}
+
+function parseTransferArgs(command: 'put' | 'get', args: string[]): CliTransferOptions {
+  let host: string | undefined;
+  let recursive = false;
+  const positionals: string[] = [];
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    switch (arg) {
+      case '--host':
+        host = consumeFlagValue(args, index, '--host');
+        index += 1;
+        break;
+      case '--recursive':
+        recursive = true;
+        break;
+      default:
+        if (arg.startsWith('--')) {
+          throw new CLIError(`Unknown option for ${command}: ${arg}`);
+        }
+        positionals.push(arg);
+    }
+  }
+
+  if (!host) {
+    throw new CLIError(`${command} requires --host <host>`);
+  }
+
+  if (positionals.length !== 2) {
+    throw new CLIError(`${command} requires a source path and destination path`);
+  }
+
+  return {
+    host,
+    sourcePath: parseRequiredTrimmedArgument(positionals[0], `${command} requires a source path and destination path`),
+    destinationPath: parseRequiredTrimmedArgument(positionals[1], `${command} requires a source path and destination path`),
+    recursive,
+  };
 }
 
 function parseAddHost(args: string[]): ParsedCliCommand {
@@ -163,8 +212,8 @@ function parseStart(args: string[]): ParsedCliCommand {
 }
 
 function parseExec(args: string[]): ParsedCliCommand {
-  if (args.length < 2) {
-    throw new CLIError('exec requires a session name and command');
+  if (args.length === 0) {
+    throw new CLIError('exec requires a session name');
   }
 
   const [rawSessionName, ...rest] = args;
@@ -179,12 +228,39 @@ function parseExec(args: string[]): ParsedCliCommand {
       continue;
     }
 
+    if (arg === '--file') {
+      if (options.filePath) {
+        throw new CLIError('exec accepts only one --file option');
+      }
+
+      options.filePath = parseRequiredTrimmedArgument(consumeFlagValue(rest, index, '--file'), 'Flag --file requires a value');
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--')) {
+      throw new CLIError(`Unknown option for exec: ${arg}`);
+    }
+
     commandParts.push(...rest.slice(index));
     break;
   }
 
+  if (options.filePath) {
+    if (commandParts.length > 0) {
+      throw new CLIError('exec accepts either inline command text or --file <path>, not both');
+    }
+
+    return {
+      kind: 'exec',
+      sessionName,
+      command: '',
+      options,
+    };
+  }
+
   if (commandParts.length === 0) {
-    throw new CLIError('exec requires a command');
+    throw new CLIError('exec requires a command or --file <path>');
   }
 
   return {

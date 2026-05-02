@@ -57,7 +57,7 @@ Sessions in `ssh-cli-sessions` are reusable SSH shells held by the shared sessio
 - blank session id on `startSession` / `ensureSession` -> `SessionError`
 - duplicate `startSession` id -> `SessionExistsError`
 - missing session on `execute` / `closeSession` / `getSessionInfo` -> `SessionNotFoundError`
-- concurrent command while another is pending -> `SessionBusyError`
+- overlapping commands on the same live session -> queued FIFO execution on the existing shell
 - disposed session reused -> `SessionError`
 - shell missing after connection setup -> `SessionError`
 
@@ -65,6 +65,7 @@ Sessions in `ssh-cli-sessions` are reusable SSH shells held by the shared sessio
 - Good: start named session once, run multiple commands through the reused shell, close explicitly
 - Base: `listSessions()` on a fresh service returns `[]`
 - Bad: blank session name, starting the same named session twice, executing against a missing session
+- Base: overlapping `execute()` calls on one live session serialize instead of opening a second shell
 
 ### 6. Tests Required
 - Unit: timeout config falls back to 24h for invalid env values
@@ -72,9 +73,11 @@ Sessions in `ssh-cli-sessions` are reusable SSH shells held by the shared sessio
 - Unit: lookup operations on missing sessions raise `SessionNotFoundError`
 - Unit: fresh service lists no sessions and `hasSession()` is false
 - Integration: repeated `execute` calls on one session preserve remote shell state
+- Integration: overlapping `execute` calls on one session resolve in FIFO order and preserve remote shell state
 - Assertion points:
   - duplicate ids fail at the service boundary
   - missing-session errors are stable for adapters to map
+  - same-session overlap does not fail solely because another command is already running
   - invalid env strings like `1234ms` do not partially parse as valid timeouts
 
 ### 7. Wrong vs Correct

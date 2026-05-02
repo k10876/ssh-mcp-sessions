@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import { join } from 'node:path';
 
-import { getMaxInactivityMs } from '../src/config.js';
+import { compileExecReminderRules, getMatchingExecReminders, getMaxInactivityMs, loadUserConfig } from '../src/config.js';
 import { HostStore } from '../src/services/host-store.js';
 
 describe('config', () => {
@@ -21,6 +21,62 @@ describe('config', () => {
 
   it('falls back when env contains non-numeric suffixes', () => {
     expect(getMaxInactivityMs({ SSH_CLI_MAX_INACTIVITY_MS: '1234ms' } as NodeJS.ProcessEnv)).toBe(24 * 60 * 60 * 1000);
+  });
+
+  it('loads exec reminder rules from config.yaml', async () => {
+    tempDir = await mkdtemp(join(os.tmpdir(), 'ssh-cli-config-'));
+    const configPath = join(tempDir, 'config.yaml');
+    await writeFile(
+      configPath,
+      [
+        'exec:',
+        '  reminders:',
+        '    - when: input',
+        '      pattern: sbatch',
+        '      reminder: Check queue status with squeue.',
+        '    - when: output',
+        '      pattern: Submitted batch job',
+        '      reminder: Capture the job id for follow-up.',
+      ].join('\n'),
+      'utf8',
+    );
+
+    await expect(loadUserConfig(configPath)).resolves.toEqual({
+      exec: {
+        reminders: [
+          { when: 'input', pattern: 'sbatch', reminder: 'Check queue status with squeue.' },
+          { when: 'output', pattern: 'Submitted batch job', reminder: 'Capture the job id for follow-up.' },
+        ],
+      },
+    });
+  });
+
+  it('rejects invalid reminder config shape clearly', async () => {
+    tempDir = await mkdtemp(join(os.tmpdir(), 'ssh-cli-config-'));
+    const configPath = join(tempDir, 'config.yaml');
+    await writeFile(configPath, ['exec:', '  reminders:', '    - when: command', '      pattern: sbatch'].join('\n'), 'utf8');
+
+    await expect(loadUserConfig(configPath)).rejects.toThrow(/Invalid config/);
+  });
+
+  it('rejects invalid reminder regex clearly', () => {
+    expect(() =>
+      compileExecReminderRules([{ when: 'both', pattern: '(', reminder: 'broken regex reminder' }]),
+    ).toThrow(/Invalid exec reminder regex/);
+  });
+
+  it('matches reminder rules against input and output text', () => {
+    const rules = compileExecReminderRules([
+      { when: 'input', pattern: 'sbatch', reminder: 'input reminder' },
+      { when: 'output', pattern: 'Submitted batch job', reminder: 'output reminder' },
+      { when: 'both', pattern: 'job', reminder: 'either reminder' },
+    ]);
+
+    expect(getMatchingExecReminders('sbatch deploy.sh', 'Submitted batch job 123', rules)).toEqual([
+      'input reminder',
+      'output reminder',
+      'either reminder',
+    ]);
   });
 });
 
@@ -80,4 +136,3 @@ describe('host store', () => {
     });
   });
 });
-

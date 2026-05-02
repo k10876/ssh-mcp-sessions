@@ -25,11 +25,19 @@ export type CliStartOptions = {
 
 export type CliExecOptions = {
   auto: boolean;
+  filePath?: string;
 };
 
 export type CliLogsOptions = {
   lines?: number;
   follow: boolean;
+};
+
+export type CliTransferOptions = {
+  host: string;
+  sourcePath: string;
+  destinationPath: string;
+  recursive: boolean;
 };
 
 export type ParsedCliCommand =
@@ -41,4 +49,6 @@ export type ParsedCliCommand =
   | { kind: 'list' }
   | { kind: 'kill'; sessionName: string }
   | { kind: 'logs'; sessionName: string; options: CliLogsOptions }
-  | { kind: 'attach'; sessionName: string };
+  | { kind: 'attach'; sessionName: string }
+  | { kind: 'put'; options: CliTransferOptions }
+  | { kind: 'get'; options: CliTransferOptions };

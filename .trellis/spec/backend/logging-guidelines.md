@@ -21,6 +21,7 @@
 - Session lifecycle events (start, stop, timeout, death) are logged to the session log, and optionally to `stderr` for system observability.
 - Host registration and host metadata changes are audit-logged.
 - File get, pull, locations from and to are recorded.
+- Direct transfer commands (`put` / `get`) should be audit-logged separately from session logs because they are host operations, not shell-session operations.
 
 **What is never logged:**
 - Plain-text passwords and private key contents are never included in any logs.
@@ -45,6 +46,7 @@ Security is prioritized: explicit redaction is performed if passwords, secrets, 
 - **Session Logs**: Every command executed via `exec` (log to `~/.ssh-cli-sessions/logs/<session-id>.log`). Include timestamps and command output.
 - **System Logs**: Session lifecycle events (start, stop, timeout) should go to the main application log (if configured) or `stderr` in debug mode.
 - **Audit**: Log host registration changes (add/edit/remove).
+- **Transfer Audit**: Log `put` / `get` operation type, stored host id, and source/destination paths to a transfer log under `~/.ssh-cli-sessions/logs/`.
 
 ---
 
@@ -52,6 +54,7 @@ Security is prioritized: explicit redaction is performed if passwords, secrets, 
 
 - **Passwords**: Never log plain-text passwords. Redact them if they appear in configs during debug.
 - **Private Keys**: Never log private key contents. Log only the `keyPath`.
+- **SSH Auth Material**: Never log `ConnectConfig.password`, `privateKey`, or any derived secret-bearing payloads when recording transfer activity.
 - **Sensitive Output**: While session logs capture output for the user, avoid logging sensitive results to system-wide logs.
 
 ---

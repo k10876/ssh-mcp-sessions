@@ -16,6 +16,7 @@ A Linux-first CLI SSH session manager with named persistent shells, per-session 
 - Session death tracking for `error`, `close`, and `end` events
 - `list` / `ps` output that shows active and recently dead sessions
 - Local-`tmux` attach workflow for interactive SSH access
+- Direct SFTP `put` / `get` file and directory transfer commands
 - Opt-in AI auto mode hook via `SSH_CLI_AI_AUTO_MODE=true` or `--auto`
 
 ## Installation
@@ -72,6 +73,13 @@ ssh-cli kill work
 ssh-cli close work
 ```
 
+Transfer files:
+
+```bash
+ssh-cli put --host dev ./build.tar.gz /tmp/build.tar.gz
+ssh-cli get --host dev /var/log/app.log ./app.log
+```
+
 ## Commands
 
 ### `ssh-cli add-host <name> --host user@host [--port 22] [--key-path <path>] [--password <password>]`
@@ -112,6 +120,14 @@ ssh-cli exec deploy-shell "npm test"
 ```
 
 The command reuses the existing SSH shell, so remote state can carry across executions.
+
+For complex or multi-line shell input, use file mode to avoid local shell escaping issues:
+
+```bash
+ssh-cli exec deploy-shell --file ./deploy.sh
+```
+
+`ssh-cli` reads the file locally and sends its exact contents into the remote persistent shell. This preserves newlines and special characters without adding a language-specific execution mode.
 
 #### AI auto mode
 
@@ -183,6 +199,34 @@ tmux new-session -A -s ssh-cli-deploy-shell ssh -t alice@example.com
 
 If you are already inside tmux, `ssh-cli attach` switches the local client to that session instead of nesting a second attach.
 
+### `ssh-cli put --host <host> <local-path> <remote-path> [--recursive]`
+
+Uploads a file or directory to a stored host over SFTP using that host's saved authentication.
+
+```bash
+ssh-cli put --host dev ./dist/app.tar.gz /tmp/app.tar.gz
+ssh-cli put --host dev --recursive ./dist /srv/app/dist
+```
+
+Notes:
+
+- directory uploads require `--recursive`
+- transfers connect directly to the host and do not reuse named shell sessions
+
+### `ssh-cli get --host <host> <remote-path> <local-path> [--recursive]`
+
+Downloads a file or directory from a stored host over SFTP.
+
+```bash
+ssh-cli get --host dev /tmp/app.tar.gz ./app.tar.gz
+ssh-cli get --host dev --recursive /srv/app/dist ./dist-backup
+```
+
+Notes:
+
+- directory downloads require `--recursive`
+- transfers connect directly to the host and do not reuse named shell sessions
+
 ## Storage paths
 
 ### Hosts
@@ -238,6 +282,14 @@ Logs include timestamped entries for:
 - requested close
 - inactivity timeout
 - unexpected disconnect/death reason
+
+Transfer activity is also audit-logged to:
+
+```text
+~/.ssh-cli-sessions/logs/transfers.log
+```
+
+Transfer logs record the operation, stored host id, and source/destination paths. They do not log passwords or private key contents.
 
 ## Session observability
 

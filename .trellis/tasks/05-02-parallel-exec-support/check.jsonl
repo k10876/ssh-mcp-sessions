@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/session-management.md", "reason": "Verify the new queued execute behavior is reflected in the session contract."}
+{"file": ".trellis/spec/backend/cli-interface.md", "reason": "Check the new exec input/reminder surface against CLI expectations."}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Check that error behavior outside same-session overlap remains stable."}
+{"file": ".trellis/spec/backend/logging-guidelines.md", "reason": "Verify queued execs still log commands and results coherently."}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Check config validation and filesystem access patterns."}
