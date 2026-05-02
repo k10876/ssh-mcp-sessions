@@ -3,8 +3,6 @@
 #
 # All values have sensible defaults. Only override what you need.
 
-project_name: "ssh-cli-sessions"
-
 #-------------------------------------------------------------------------------
 # Session Recording
 #-------------------------------------------------------------------------------

@@ -9,15 +9,6 @@
 3. **Persist everything** — research, decisions, and lessons all go to files; conversations get compacted, files don't
 4. **Incremental development** — one task at a time
 5. **Capture learnings** — after each task, review and write new knowledge back to spec
-6. **Default to TDD when tests are feasible** — behavior changes should start with a failing test, then go red → green → refactor
-7. **Use worktrees for clean isolation when needed** — keep implementation out of the user's main tree when parallel work or safety requires separation
-8. **Match model strength to the work** — prefer lighter/faster models for low-stakes operational loops and stronger models for demanding reasoning
-
-### Model Selection
-
-Use lighter/faster model tiers for low-stakes operational loops such as environment debugging, process monitoring, watching logs or builds, and similar polling. Haiku-class models are often a good fit.
-
-Use stronger model tiers for requirement shaping, architectural choices, non-trivial implementation, review/checking, bug diagnosis, and spec/workflow design. Sonnet-class models are usually a good default for demanding work; Opus-class models fit cases with unusually high ambiguity or reasoning load.
 
 ---
 
@@ -38,7 +29,7 @@ Creates `.trellis/.developer` (gitignored) + `.trellis/workspace/<your-name>/`.
 `.trellis/spec/` holds coding guidelines organized by package and layer.
 
 - `.trellis/spec/<package>/<layer>/index.md` — entry point with **Pre-Development Checklist** + **Quality Check**. Actual guidelines live in the `.md` files it points to.
-- `.trellis/spec/guides/index.md` — cross-package thinking guides, including cross-layer thinking, code reuse, TDD, and worktree isolation guidance.
+- `.trellis/spec/guides/index.md` — cross-package thinking guides.
 
 ```bash
 python3 ./.trellis/scripts/get_context.py --mode packages   # list packages / layers
@@ -136,29 +127,6 @@ Phase 3: Finish  → distill lessons + wrap-up
 2. Run steps in order inside each Phase; `[required]` steps can't be skipped
 3. Phases can roll back (e.g., Execute reveals a prd defect → return to Plan to fix, then re-enter Execute)
 4. Steps tagged `[once]` are skipped if already done; don't re-run
-
-### Agent File Handoff Protocol
-
-When using agent teams or sub-agents in this repository, do not rely on detailed chat replies reaching the lead. Detailed results must be delivered through coded files named `agent-message-[word].md`.
-
-Lead workflow:
-
-1. Run `bash ./.claude/skills/trellis-local/generate-agent-message-code.sh` to generate a fresh code and expected file name.
-2. Use that exact code in the agent prompt and name both expected files explicitly.
-3. Ensure both destinations exist or can be created safely:
-   - `./agent-message-[word].md`
-   - `~/.claude/agent-msg/agent-message-[word].md`
-4. Create `~/.claude/agent-msg/` first if it is missing.
-5. Tell the agent to write its detailed handoff to both files and keep any direct reply concise.
-6. If you get a stale notification or no detailed reply, stale delivery may be the known bug. Read the coded file before assuming the agent failed to respond.
-7. If an expected coded message file is missing, treat that as an error and repeat the coded-message workflow with a fresh code.
-
-Team-member workflow:
-
-1. Treat detailed replies to the lead as unreliable delivery.
-2. Write the detailed result to the coded file in the project root.
-3. Write the same detailed result to `~/.claude/agent-msg/agent-message-[word].md`.
-4. Use a brief chat reply only as a pointer to the coded file.
 
 ### Skill Routing
 
@@ -294,7 +262,6 @@ Curate `implement.jsonl` and `check.jsonl` so the Phase 2 sub-agents get the rig
 **What to put in**:
 - **Spec files** — `.trellis/spec/<package>/<layer>/index.md` and any specific guideline files (`error-handling.md`, `conventions.md`, etc.) relevant to this task
 - **Research files** — `{TASK_DIR}/research/*.md` that the sub-agent will need to consult
-- **Shared guides when they materially affect execution** — especially `.trellis/spec/guides/test-driven-development-guide.md` for behavior work and `.trellis/spec/guides/worktree-usage-guide.md` when isolation may be needed
 
 **What NOT to put in**:
 - Code files (`src/**`, `packages/**/*.ts`, etc.) — those are read by the sub-agent during implementation, not pre-registered here
@@ -356,19 +323,12 @@ Goal: turn the prd into code that passes quality checks.
 
 #### 2.1 Implement `[required · repeatable]`
 
-Before or during implementation, apply these expectations when relevant:
-
-- Read the shared TDD guide and keep behavior work in a red → green → refactor loop.
-- Start with a failing test for behavior changes whenever tests are feasible.
-- If implementation should not happen in the current tree, use a clean isolated worktree instead of disturbing the user's main workspace.
-- Verify the baseline in that worktree before adding task changes so pre-existing failures are visible.
-
 [Claude Code, Cursor, OpenCode, Gemini, Qoder, CodeBuddy, Copilot, Droid]
 
 Spawn the implement sub-agent:
 
 - **Agent type**: `trellis-implement`
-- **Task description**: Implement the requirements per prd.md, consulting materials under `{TASK_DIR}/research/`; follow shared guidance for TDD and isolated worktrees when relevant; finish by running project lint and type-check
+- **Task description**: Implement the requirements per prd.md, consulting materials under `{TASK_DIR}/research/`; finish by running project lint and type-check
 
 The platform hook/plugin auto-handles:
 - Reads `implement.jsonl` and injects the referenced spec files into the agent prompt
@@ -381,7 +341,7 @@ The platform hook/plugin auto-handles:
 Spawn the implement sub-agent:
 
 - **Agent type**: `trellis-implement`
-- **Task description**: Implement the requirements per prd.md, consulting materials under `{TASK_DIR}/research/`; follow shared guidance for TDD and isolated worktrees when relevant; finish by running project lint and type-check
+- **Task description**: Implement the requirements per prd.md, consulting materials under `{TASK_DIR}/research/`; finish by running project lint and type-check
 
 The Codex sub-agent definition auto-handles the context load requirement:
 - Reads `.trellis/.current-task`, `prd.md`, and `info.md` if present
@@ -394,7 +354,7 @@ The Codex sub-agent definition auto-handles the context load requirement:
 Spawn the implement sub-agent:
 
 - **Agent type**: `trellis-implement`
-- **Task description**: Implement the requirements per prd.md, consulting materials under `{TASK_DIR}/research/`; follow shared guidance for TDD and isolated worktrees when relevant; finish by running project lint and type-check
+- **Task description**: Implement the requirements per prd.md, consulting materials under `{TASK_DIR}/research/`; finish by running project lint and type-check
 
 The platform prelude auto-handles the context load requirement:
 - Reads `implement.jsonl` and injects the referenced spec files into the agent prompt
@@ -407,10 +367,8 @@ The platform prelude auto-handles the context load requirement:
 1. Load the `trellis-before-dev` skill to read project guidelines
 2. Read `{TASK_DIR}/prd.md` for requirements
 3. Consult materials under `{TASK_DIR}/research/`
-4. Use TDD by default when tests are feasible: start with a failing test, then write the minimal code to pass
-5. If the current working tree should stay untouched, switch to an isolated worktree and verify a clean baseline before implementing
-6. Implement the code per requirements
-7. Run project lint and type-check
+4. Implement the code per requirements
+5. Run project lint and type-check
 
 [/Kilo, Antigravity, Windsurf]
 
@@ -455,27 +413,12 @@ Goal: ensure code quality, capture lessons, record the work.
 
 #### 3.1 Quality verification `[required · repeatable]`
 
-[Claude Code, Cursor, OpenCode, Codex, Kiro, Gemini, Qoder, CodeBuddy, Copilot, Droid]
-
-Dispatch the `trellis-check` sub-agent for final verification:
-- Spec compliance
-- lint / type-check / tests
-- Cross-layer consistency (when changes span layers)
-
-If issues are found → fix → re-check, until green.
-
-[/Claude Code, Cursor, OpenCode, Codex, Kiro, Gemini, Qoder, CodeBuddy, Copilot, Droid]
-
-[Kilo, Antigravity, Windsurf]
-
 Load the `trellis-check` skill and do a final verification:
 - Spec compliance
 - lint / type-check / tests
 - Cross-layer consistency (when changes span layers)
 
 If issues are found → fix → re-check, until green.
-
-[/Kilo, Antigravity, Windsurf]
 
 #### 3.2 Debug retrospective `[on demand]`
 
@@ -530,7 +473,6 @@ Research belongs in `{task_dir}/research/*.md`, written by `trellis-research` su
 Flow: trellis-implement → trellis-check → trellis-update-spec → finish
 Next required action: inspect conversation history + git status, then execute the next uncompleted step in that sequence.
 For agent-capable platforms, do NOT edit code in the main session; dispatch `trellis-implement` for implementation and dispatch `trellis-check` before reporting completion.
-Agent message reminder: if an agent notification looks stale, it may be the delivery bug; read the expected coded `agent-message-[word].md` file in the project root or `~/.claude/agent-msg/` before assuming no response. If the expected coded file is missing, treat that as an error and repeat the coded-message workflow with a fresh code.
 [/workflow-state:in_progress]
 
 [workflow-state:completed]

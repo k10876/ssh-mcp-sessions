@@ -44,13 +44,11 @@ digits="$(printf '%03d' $(( RANDOM % 1000 )))"
 word="${word}${digits}"
 
 filename="agent-message-${word}.md"
-project_path="./${filename}"
-shared_dir="$HOME/.claude/agent-msg"
+shared_dir="$HOME/.agent-messages"
 shared_path="${shared_dir}/${filename}"
 
 mkdir -p "$shared_dir"
 
 printf 'Code: %s\n' "$word"
 printf 'Filename: %s\n' "$filename"
-printf 'Project path: %s\n' "$project_path"
 printf 'Shared path: %s\n' "$shared_path"

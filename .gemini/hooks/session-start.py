@@ -17,7 +17,8 @@ from io import StringIO
 from pathlib import Path
 
 FIRST_REPLY_NOTICE = """<first-reply-notice>
-On the first visible assistant reply in this session, inform the user that trellis is injected.
+On the first visible assistant reply in this session, begin with exactly one short Chinese sentence:
+Trellis SessionStart 已注入：workflow、当前任务状态、开发者身份、git 状态、active tasks、spec 索引已加载。
 Then continue directly with the user's request. This notice is one-shot: do not repeat it after the first assistant reply in the same session.
 </first-reply-notice>"""
 

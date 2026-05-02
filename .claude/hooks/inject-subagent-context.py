@@ -66,10 +66,7 @@ CODED_MESSAGE_PROTOCOL = """## Coded Message Delivery Protocol
 
 Important: stale notifications can be a delivery bug. Detailed results sent only as a reply to the lead may be invisible or delayed.
 
-- If the lead provided a code such as `agent-message-[word].md`, you MUST write your detailed result to that coded file.
-- Write the same detailed result to both destinations:
-  - `./agent-message-[word].md`
-  - `~/.claude/agent-msg/agent-message-[word].md`
+- If the lead provided a code such as `agent-message-[word].md`, you MUST write your detailed result to `~/.agent-messages/agent-message-[word].md`.
 - Treat chat replies to the lead as unreliable for detailed handoff. Use the chat reply only as a short pointer.
 - If the lead did not provide a coded file name, state that the coded-file workflow is required and ask for the generated code/path instead of relying on chat-only delivery.
 """
