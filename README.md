@@ -9,7 +9,7 @@ A Linux-first CLI SSH session manager with named persistent shells, per-session 
 ## Features
 
 - CLI-first workflow for humans on Linux
-- Named in-memory SSH sessions with shell reuse
+- Named SSH sessions with shell reuse across CLI commands
 - Host storage in `~/.ssh-cli-sessions/hosts.json`
 - Session logs in `~/.ssh-cli-sessions/logs/`
 - Password, private key, and SSH agent authentication
@@ -100,7 +100,7 @@ Starts a named session for a configured host.
 ssh-cli start deploy-shell --host staging
 ```
 
-Sessions are in-memory only. If the process exits, sessions are lost.
+Sessions are held by a lightweight local `ssh-cli` daemon so later CLI commands can reuse the same shell state.
 
 ### `ssh-cli exec <session-name> "<command>"`
 
@@ -314,13 +314,13 @@ This project intentionally does not implement:
 - auto-reconnect
 - port forwarding or tunnels
 - cross-reboot persistence
-- heavy daemon behavior by default
+- heavy remote orchestration behavior by default
 - GUI or TUI interfaces
 
 Additional notes:
 
-- sessions are process-local and in-memory
-- restarting the process removes active sessions
+- sessions live in a lightweight local `ssh-cli` daemon
+- if that daemon stops, active sessions are lost
 - direct interactive attach is currently instruction-based rather than a fully managed local wrapper
 - logs are for session observability, but secrets should not be written to system-level logs
 

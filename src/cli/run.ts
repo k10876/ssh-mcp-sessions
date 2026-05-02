@@ -16,10 +16,10 @@ export interface SessionRepository {
   startSession(id: string, config: ConnectConfig): Promise<SessionInfo>;
   execute(id: string, command: string): Promise<CommandResult>;
   closeSession(id: string): Promise<void>;
-  getSessionInfo(id: string): SessionInfo;
-  listSessions(): ActiveSessionInfo[];
-  listDeadSessions(): DeadSessionInfo[];
-  consumeNotifications(): string[];
+  getSessionInfo(id: string): Promise<SessionInfo> | SessionInfo;
+  listSessions(): Promise<ActiveSessionInfo[]> | ActiveSessionInfo[];
+  listDeadSessions(): Promise<DeadSessionInfo[]> | DeadSessionInfo[];
+  consumeNotifications(): Promise<string[]> | string[];
 }
 
 export type CliDependencies = {
@@ -109,14 +109,14 @@ export async function runCliCommand(parsed: import('./types.js').ParsedCliComman
       return 0;
     }
     case 'list': {
-      const notifications = deps.sessionService.consumeNotifications();
+      const notifications = await deps.sessionService.consumeNotifications();
       for (const notification of notifications) {
         writeLine(stderr, notification);
       }
 
       const hosts = await deps.hostStore.listHosts();
-      const sessions = deps.sessionService.listSessions();
-      const deadSessions = deps.sessionService.listDeadSessions();
+      const sessions = await deps.sessionService.listSessions();
+      const deadSessions = await deps.sessionService.listDeadSessions();
 
       if (sessions.length === 0 && deadSessions.length === 0 && hosts.length === 0) {
         writeLine(stdout, 'No hosts or sessions found.');
@@ -176,7 +176,7 @@ export async function runCliCommand(parsed: import('./types.js').ParsedCliComman
       if (deps.attachInstructions) {
         writeLine(stdout, await deps.attachInstructions(parsed.sessionName));
       } else {
-        const session = deps.sessionService.getSessionInfo(parsed.sessionName);
+        const session = await deps.sessionService.getSessionInfo(parsed.sessionName);
         const sshParts = ['ssh'];
         if (session.port !== 22) {
           sshParts.push('-p', String(session.port));

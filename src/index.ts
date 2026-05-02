@@ -8,6 +8,7 @@ import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
 import { runCliMain } from './cli/index.js';
+import { startSessionDaemon } from './cli/daemon.js';
 import {
   HostNotFoundError,
   HostStoreError,
@@ -270,6 +271,11 @@ export async function startMcpServer(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  if (process.argv[2] === 'daemon') {
+    await startSessionDaemon({ sessionService: defaultSessionService });
+    return new Promise(() => undefined);
+  }
+
   await runCliMain();
 }
 

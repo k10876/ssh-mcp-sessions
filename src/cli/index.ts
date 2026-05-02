@@ -3,7 +3,7 @@ import { dirname, resolve as resolvePath } from 'node:path';
 
 import { CLIError } from '../errors.js';
 import { defaultHostStore } from '../services/host-store.js';
-import { defaultSessionService } from '../services/session-service.js';
+import { createDaemonSessionRepository } from './daemon.js';
 import { createAttachInstructions, readSessionLogs } from './io.js';
 import { readPackageVersion, resolveExecutableName } from './formatting.js';
 import { parseCliArgs } from './parse.js';
@@ -16,10 +16,11 @@ export async function runCli(argv: string[]): Promise<number> {
   const packageVersion = await readPackageVersion(packageJsonPath);
   const executableName = resolveExecutableName(process.argv[1]);
   const parsed = parseCliArgs(argv);
+  const sessionRepository = createDaemonSessionRepository();
 
   return runCliCommand(parsed, {
     hostStore: defaultHostStore,
-    sessionService: defaultSessionService,
+    sessionService: sessionRepository,
     env: process.env,
     stdout: process.stdout,
     stderr: process.stderr,
@@ -28,7 +29,7 @@ export async function runCli(argv: string[]): Promise<number> {
     readLogs: readSessionLogs,
     attachInstructions: createAttachInstructions({
       hostStore: defaultHostStore,
-      sessionService: defaultSessionService,
+      sessionService: sessionRepository,
     }),
     runMcpMode: async () => {
       const { startMcpServer } = await import('../index.js');

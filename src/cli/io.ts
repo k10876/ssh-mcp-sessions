@@ -31,7 +31,7 @@ export function createAttachInstructions(deps: {
   sessionService: SessionRepository;
 }): (sessionName: string) => Promise<string> {
   return async (sessionName: string) => {
-    const session = deps.sessionService.getSessionInfo(sessionName);
+    const session = await deps.sessionService.getSessionInfo(sessionName);
     const hosts = await deps.hostStore.listHosts();
     const matchingHost = hosts.find(
       (host) => host.host === session.host && host.username === session.username && (host.port ?? 22) === session.port,

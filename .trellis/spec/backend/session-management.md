@@ -4,11 +4,11 @@
 
 ## Overview
 
-Sessions in `ssh-cli-sessions` are reusable SSH shells held in process memory and shared by higher-level interfaces.
+Sessions in `ssh-cli-sessions` are reusable SSH shells held by the shared session backend and exposed to higher-level interfaces.
 
 ## Persistence Rules
 
-- **Storage**: Sessions are held in-memory by the current process.
+- **Storage**: Sessions are held in-memory by the owning backend process. The human CLI reaches that backend through a lightweight local daemon.
 - **Naming**: The service layer requires a non-empty session name. Adapters may generate one before calling the service.
 - **Logs**: Session logging is handled by later observability work; the core backend should expose stable session identities and lifecycle state.
 
