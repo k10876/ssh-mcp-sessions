@@ -1,9 +1,9 @@
 {
-  "id": "cli-command-surface",
-  "name": "cli-command-surface",
-  "title": "CLI command surface for ssh-cli",
-  "description": "Implement the human-first ssh-cli command parser and command handlers around the shared backend.",
-  "status": "planning",
+  "id": "cli-session-observability",
+  "name": "cli-session-observability",
+  "title": "Session observability and death handling",
+  "description": "Implement logs, dead-session state, disconnect detection, hook-style messages, and timeout behavior for CLI/MCP sessions.",
+  "status": "completed",
   "dev_type": "feature",
   "scope": null,
   "package": null,
@@ -11,7 +11,7 @@
   "creator": "k10876",
   "assignee": "k10876",
   "createdAt": "2026-04-25",
-  "completedAt": null,
+  "completedAt": "2026-04-26",
   "branch": null,
   "base_branch": "main",
   "worktree_path": null,
@@ -21,10 +21,10 @@
   "children": [],
   "parent": "04-25-agent-implementation-task",
   "relatedFiles": [
+    "src/services/",
     "src/cli/",
-    "src/index.ts",
-    "package.json",
-    "README.md"
+    "src/mcp/",
+    "src/types/"
   ],
   "notes": "",
   "meta": {}
