@@ -15,7 +15,7 @@ A Linux-first CLI SSH session manager with named persistent shells, per-session 
 - Password, private key, and SSH agent authentication
 - Session death tracking for `error`, `close`, and `end` events
 - `list` / `ps` output that shows active and recently dead sessions
-- `attach` guidance for remote `tmux` sessions
+- Local-`tmux` attach workflow for interactive SSH access
 - Opt-in AI auto mode hook via `SSH_CLI_AI_AUTO_MODE=true` or `--auto`
 
 ## Installation
@@ -164,15 +164,21 @@ Current follow mode prints the current contents plus a note that streaming follo
 
 ### `ssh-cli attach <session-name>`
 
-Prints practical `ssh` + `tmux` attach instructions for humans.
+Starts or reuses a local `tmux` session and runs an interactive `ssh` connection inside it.
 
-Example output pattern:
+Behavior:
+
+- `tmux` is required on the local machine only
+- the remote host does not need `tmux`
+- the command reuses a local session named `ssh-cli-<session-name>`
+
+Equivalent local command pattern:
 
 ```bash
-ssh -t alice@example.com "tmux attach -t ssh-cli-deploy-shell || tmux new -s ssh-cli-deploy-shell"
+tmux new-session -A -s ssh-cli-deploy-shell ssh -t alice@example.com
 ```
 
-This is intended as a practical path for jumping into the remote environment interactively.
+If you are already inside tmux, `ssh-cli attach` switches the local client to that session instead of nesting a second attach.
 
 ## Storage paths
 
@@ -293,7 +299,7 @@ Additional notes:
 
 - sessions live in a lightweight local `ssh-cli` daemon
 - if that daemon stops, active sessions are lost
-- direct interactive attach is currently instruction-based rather than a fully managed local wrapper
+- `attach` depends on local `tmux`; the remote host does not need it
 - logs are for session observability, but secrets should not be written to system-level logs
 
 ## License

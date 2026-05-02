@@ -21,7 +21,7 @@ Sessions in `ssh-cli-sessions` are reusable SSH shells held by the shared sessio
 ## Scenario: Named in-memory session service contract
 
 ### 1. Scope / Trigger
-- Trigger: session lifecycle is a shared backend contract used by MCP now and CLI later.
+- Trigger: session lifecycle is a shared backend contract used by the human CLI and any future adapters.
 
 ### 2. Signatures
 - `new SessionService(timeoutMs = getMaxInactivityMs())`

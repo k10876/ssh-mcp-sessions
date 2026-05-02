@@ -4,6 +4,7 @@ import { ValidationError } from '../errors.js';
 import type { DeadSessionInfo } from '../types/dead-session.js';
 import type { ActiveSessionInfo, CommandResult, SessionInfo } from '../types/session.js';
 import type { StoredHost } from '../types/host.js';
+import { createAttachFallbackMessage } from './io.js';
 
 export interface HostRepository {
   listHosts(): Promise<StoredHost[]>;
@@ -31,7 +32,7 @@ export type CliDependencies = {
   packageVersion: string;
   executableName?: string;
   readLogs?: (sessionName: string, options: { lines?: number; follow: boolean }) => Promise<string>;
-  attachInstructions?: (sessionName: string) => Promise<string>;
+  attachSession?: (sessionName: string) => Promise<void>;
 };
 
 function writeLine(stream: Pick<NodeJS.WriteStream, 'write'>, text: string): void {
@@ -168,24 +169,15 @@ export async function runCliCommand(parsed: import('./types.js').ParsedCliComman
       const output = await deps.readLogs(parsed.sessionName, parsed.options);
       if (output) {
         writeLine(stdout, output);
-      }
+    }
       return 0;
     }
     case 'attach': {
-      if (deps.attachInstructions) {
-        writeLine(stdout, await deps.attachInstructions(parsed.sessionName));
+      if (deps.attachSession) {
+        await deps.attachSession(parsed.sessionName);
       } else {
         const session = await deps.sessionService.getSessionInfo(parsed.sessionName);
-        const sshParts = ['ssh'];
-        if (session.port !== 22) {
-          sshParts.push('-p', String(session.port));
-        }
-        sshParts.push(
-          '-t',
-          `${session.username}@${session.host}`,
-          `"tmux attach -t ssh-cli-${parsed.sessionName} || tmux new -s ssh-cli-${parsed.sessionName}"`,
-        );
-        writeLine(stdout, `Run: ${sshParts.join(' ')}`);
+        writeLine(stdout, createAttachFallbackMessage(parsed.sessionName, session));
       }
       return 0;
     }

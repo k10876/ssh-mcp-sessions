@@ -4,7 +4,7 @@ import { dirname, resolve as resolvePath } from 'node:path';
 import { CLIError } from '../errors.js';
 import { defaultHostStore } from '../services/host-store.js';
 import { createDaemonSessionRepository } from './daemon.js';
-import { createAttachInstructions, readSessionLogs } from './io.js';
+import { createAttachSession, readSessionLogs } from './io.js';
 import { readPackageVersion, resolveExecutableName } from './formatting.js';
 import { parseCliArgs } from './parse.js';
 import { runCliCommand } from './run.js';
@@ -27,9 +27,10 @@ export async function runCli(argv: string[]): Promise<number> {
     packageVersion,
     executableName,
     readLogs: readSessionLogs,
-    attachInstructions: createAttachInstructions({
+    attachSession: createAttachSession({
       hostStore: defaultHostStore,
       sessionService: sessionRepository,
+      env: process.env,
     }),
   });
 }

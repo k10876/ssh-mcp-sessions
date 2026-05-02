@@ -16,7 +16,7 @@ The primary interface for `ssh-cli-sessions` is a human-friendly CLI. It also su
 | `list` | List active sessions and configured hosts. |
 | `kill` | Terminate an active session. |
 | `logs` | View session logs from `~/.ssh-cli-sessions/logs/`. |
-| `attach` | Enter an interactive session using `tmux` on the remote host. |
+| `attach` | Enter an interactive session using local `tmux` around a direct SSH connection. |
 
 ## Interaction Patterns
 
@@ -30,8 +30,8 @@ The primary interface for `ssh-cli-sessions` is a human-friendly CLI. It also su
 - Example: `ssh-cli exec --auto "rm -rf /"` should prompt for confirmation showing the impact.
 
 ### Interactive Access
-- The `attach` command must use `tmux` on the remote host to ensure session persistence even if the local connection drops.
-- Example: `ssh-cli attach <session-id>` -> `ssh -t <host> "tmux attach -t <session-id> || tmux new -s <session-id>"`
+- The `attach` command must use `tmux` on the local machine only and open a direct interactive SSH connection to the remote shell.
+- Example: `ssh-cli attach <session-id>` -> `tmux new-session -A -s ssh-cli-<session-id> ssh -t <host>`
 
 ## Naming Conventions
 - Commands: `kebab-case` (e.g., `add-host`).

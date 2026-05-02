@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { ValidationError } from '../src/errors.js';
+import { createAttachFallbackMessage, createAttachSession } from '../src/cli/io.js';
 import { parseCliArgs } from '../src/cli/parse.js';
 import { runCliCommand, type CliDependencies } from '../src/cli/run.js';
 import type { StoredHost } from '../src/types/host.js';
@@ -54,7 +55,7 @@ function createDeps(overrides: Partial<CliDependencies> = {}): CliDependencies {
     stdout: { write: (chunk: string) => void (stdoutText += chunk) },
     stderr: { write: (chunk: string) => void (stderrText += chunk) },
     readLogs: vi.fn(async () => 'line1\nline2'),
-    attachInstructions: vi.fn(async (sessionName: string) => `attach ${sessionName}`),
+    attachSession: vi.fn(async () => undefined),
     ...overrides,
     get __stdout() {
       return stdoutText;
@@ -275,7 +276,18 @@ describe('cli dispatch', () => {
 
     expect(deps.sessionService.closeSession).toHaveBeenCalledWith('dev-shell');
     expect(deps.readLogs).toHaveBeenCalledWith('dev-shell', { lines: 10, follow: false });
-    expect(deps.attachInstructions).toHaveBeenCalledWith('dev-shell');
+    expect(deps.attachSession).toHaveBeenCalledWith('dev-shell');
+  });
+
+  it('prints the local tmux fallback message when no attach handler is available', async () => {
+    const deps = createDeps({ attachSession: undefined });
+
+    const exitCode = await runCliCommand({ kind: 'attach', sessionName: 'dev-shell' }, deps);
+
+    expect(exitCode).toBe(0);
+    expect(deps.__stdout).toContain('Local attach requires tmux. Run:');
+    expect(deps.__stdout).toContain('tmux new-session -A -s ssh-cli-dev-shell ssh -t alice@example.com');
+    expect(deps.__stdout).toContain('remote host does not need tmux');
   });
 
   it('fails on duplicate host ids before saving', async () => {
@@ -299,5 +311,146 @@ describe('cli dispatch', () => {
         deps,
       ),
     ).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe('attach helpers', () => {
+  it('creates a local-only tmux fallback message', () => {
+    expect(
+      createAttachFallbackMessage('dev-shell', {
+        id: 'dev-shell',
+        host: 'example.com',
+        port: 22,
+        username: 'alice',
+        createdAt: 1,
+        lastCommand: null,
+        disposed: false,
+      }),
+    ).toContain('tmux new-session -A -s ssh-cli-dev-shell ssh -t alice@example.com');
+  });
+
+  it('starts and attaches a local tmux session without remote tmux commands', async () => {
+    const runCommand = vi.fn(async () => 0);
+    const attachSession = createAttachSession({
+      env: {},
+      runCommand,
+      hostStore: {
+        listHosts: vi.fn(async () => [{ id: 'dev', host: 'example.com', port: 2200, username: 'alice' }]),
+        saveHosts: vi.fn(async () => undefined),
+        getHost: vi.fn(async () => ({ id: 'dev', host: 'example.com', port: 2200, username: 'alice' })),
+        getConnectConfig: vi.fn(async () => ({ host: 'example.com', port: 2200, username: 'alice' })),
+      },
+      sessionService: {
+        startSession: vi.fn(),
+        execute: vi.fn(),
+        closeSession: vi.fn(),
+        getSessionInfo: vi.fn(async () => ({
+          id: 'dev-shell',
+          host: 'example.com',
+          port: 2200,
+          username: 'alice',
+          createdAt: 1,
+          lastCommand: null,
+          disposed: false,
+        })),
+        listSessions: vi.fn(async () => []),
+        listDeadSessions: vi.fn(async () => []),
+        consumeNotifications: vi.fn(async () => []),
+      },
+    });
+
+    await attachSession('dev-shell');
+
+    expect(runCommand).toHaveBeenNthCalledWith(
+      1,
+      'tmux',
+      ['new-session', '-Ad', '-s', 'ssh-cli-dev-shell', 'ssh', '-p', '2200', '-t', 'alice@example.com'],
+      { stdio: 'inherit' },
+    );
+    expect(runCommand).toHaveBeenNthCalledWith(2, 'tmux', ['attach-session', '-t', 'ssh-cli-dev-shell'], { stdio: 'inherit' });
+  });
+
+  it('switches the local tmux client when already inside tmux', async () => {
+    const runCommand = vi.fn(async () => 0);
+    const attachSession = createAttachSession({
+      env: { TMUX: '/tmp/tmux-1000/default,123,0' },
+      runCommand,
+      hostStore: {
+        listHosts: vi.fn(async () => []),
+        saveHosts: vi.fn(async () => undefined),
+        getHost: vi.fn(async () => ({ id: 'dev', host: 'example.com', port: 22, username: 'alice' })),
+        getConnectConfig: vi.fn(async () => ({ host: 'example.com', port: 22, username: 'alice' })),
+      },
+      sessionService: {
+        startSession: vi.fn(),
+        execute: vi.fn(),
+        closeSession: vi.fn(),
+        getSessionInfo: vi.fn(async () => ({
+          id: 'dev-shell',
+          host: 'example.com',
+          port: 22,
+          username: 'alice',
+          createdAt: 1,
+          lastCommand: null,
+          disposed: false,
+        })),
+        listSessions: vi.fn(async () => []),
+        listDeadSessions: vi.fn(async () => []),
+        consumeNotifications: vi.fn(async () => []),
+      },
+    });
+
+    await attachSession('dev-shell');
+
+    expect(runCommand).toHaveBeenNthCalledWith(2, 'tmux', ['switch-client', '-t', 'ssh-cli-dev-shell'], { stdio: 'inherit' });
+  });
+
+  it('normalizes the local tmux session name for spaced session ids', async () => {
+    const runCommand = vi.fn(async () => 0);
+    const attachSession = createAttachSession({
+      env: {},
+      runCommand,
+      hostStore: {
+        listHosts: vi.fn(async () => []),
+        saveHosts: vi.fn(async () => undefined),
+        getHost: vi.fn(async () => ({ id: 'dev', host: 'example.com', port: 22, username: 'alice' })),
+        getConnectConfig: vi.fn(async () => ({ host: 'example.com', port: 22, username: 'alice' })),
+      },
+      sessionService: {
+        startSession: vi.fn(),
+        execute: vi.fn(),
+        closeSession: vi.fn(),
+        getSessionInfo: vi.fn(async () => ({
+          id: 'deploy shell/blue',
+          host: 'example.com',
+          port: 22,
+          username: 'alice',
+          createdAt: 1,
+          lastCommand: null,
+          disposed: false,
+        })),
+        listSessions: vi.fn(async () => []),
+        listDeadSessions: vi.fn(async () => []),
+        consumeNotifications: vi.fn(async () => []),
+      },
+    });
+
+    await attachSession('deploy shell/blue');
+
+    expect(runCommand).toHaveBeenNthCalledWith(
+      1,
+      'tmux',
+      ['new-session', '-Ad', '-s', 'ssh-cli-deploy-shell-blue', 'ssh', '-t', 'alice@example.com'],
+      { stdio: 'inherit' },
+    );
+    expect(createAttachFallbackMessage('deploy shell/blue', {
+      id: 'deploy shell/blue',
+      host: 'example.com',
+      port: 22,
+      username: 'alice',
+      createdAt: 1,
+      lastCommand: null,
+      disposed: false,
+    })).toContain('tmux new-session -A -s ssh-cli-deploy-shell-blue ssh -t alice@example.com');
   });
 });
