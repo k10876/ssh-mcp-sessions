@@ -4,22 +4,6 @@
 
 ---
 
-## Overview
-
-<!--
-Document your project's quality standards here.
-
-Questions to answer:
-- What patterns are forbidden?
-- What linting rules do you enforce?
-- What are your testing requirements?
-- What code review standards apply?
--->
-
-(To be filled by the team)
-
----
-
 ## Forbidden Patterns
 
 - **No Synchronous I/O**: Avoid `fs.readFileSync`. Use `fs/promises`.

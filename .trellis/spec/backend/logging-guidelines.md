@@ -6,17 +6,28 @@
 
 ## Overview
 
-<!--
-Document your project's logging conventions here.
+**Logging conventions:**
+- Most command and session logs are written directly to per-session log files under `~/.ssh-cli-sessions/logs/` using explicit file append operations.
+- Critical errors and lifecycle events may additionally be written to `stderr` (or the main application log, if configured).
 
-Questions to answer:
-- What logging library do you use?
-- What are the log levels and when to use each?
-- What should be logged?
-- What should NOT be logged (PII, secrets)?
--->
+**Log levels and usage:**
+- **Error**: Critical failures—connection errors, command execution errors, unrecoverable filesystem issues.
+- **Warn**: Recoverable problems—session timeouts, unexpected disconnects, slow connections.
+- **Info**: Routine events—session creation/termination, command execution (log command name, not full details), successful host registration.
+- **Debug**: Internal details—raw SSH traffic logs (if enabled), state transitions, detailed processing steps.
 
-(To be filled by the team)
+**What gets logged:**
+- Every executed command (with timestamps) is appended to the session log file.
+- Session lifecycle events (start, stop, timeout, death) are logged to the session log, and optionally to `stderr` for system observability.
+- Host registration and host metadata changes are audit-logged.
+- File get, pull, locations from and to are recorded.
+
+**What is never logged:**
+- Plain-text passwords and private key contents are never included in any logs.
+- Only file paths for keys (e.g., `keyPath`) may appear.
+- Sensitive command output is restricted to session logs only—never written to system-level/global logs.
+
+Security is prioritized: explicit redaction is performed if passwords, secrets, or private key data could otherwise leak into logs (especially in debug mode).
 
 ---
 
