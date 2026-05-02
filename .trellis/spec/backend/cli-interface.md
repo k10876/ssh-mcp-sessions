@@ -31,6 +31,8 @@ The primary interface for `ssh-cli-sessions` is a human-friendly CLI. It also su
 
 ### Interactive Access
 - The `attach` command must use `tmux` on the local machine only and open a direct interactive SSH connection to the remote shell.
+- When a stored host matches the session connection details, `attach` must reuse the stored auth mode for the spawned local `ssh` process (key path, password via explicit local helper, or agent fallback).
+- Password-backed attach must fail with a clear prerequisite/help message if the required local helper is missing; do not silently fall through to an unexpected password prompt.
 - Example: `ssh-cli attach <session-id>` -> `tmux new-session -A -s ssh-cli-<session-id> ssh -t <host>`
 
 ## Naming Conventions
