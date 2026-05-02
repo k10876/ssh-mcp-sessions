@@ -41,5 +41,4 @@ export type ParsedCliCommand =
   | { kind: 'list' }
   | { kind: 'kill'; sessionName: string }
   | { kind: 'logs'; sessionName: string; options: CliLogsOptions }
-  | { kind: 'attach'; sessionName: string }
-  | { kind: 'mcp'; args: string[] };
+  | { kind: 'attach'; sessionName: string };

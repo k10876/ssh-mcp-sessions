@@ -38,11 +38,9 @@ jobs:
           echo "sshd not ready" && exit 1
       - name: Run tests
         env:
-          SSH_MCP_DISABLE_MAIN: "1"
           SSH_HOST: 127.0.0.1
           SSH_PORT: "2222"
           SSH_USER: test
           SSH_PASSWORD: secret
         run: npm test
-
 

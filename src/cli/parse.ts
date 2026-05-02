@@ -51,8 +51,6 @@ export function parseCliArgs(argv: string[]): ParsedCliCommand {
       return { kind: 'kill', sessionName: expectSingleArg(command, rest, 'session name') };
     case 'attach':
       return { kind: 'attach', sessionName: expectSingleArg(command, rest, 'session name') };
-    case 'mcp':
-      return { kind: 'mcp', args: rest };
     case 'start':
       return parseStart(rest);
     case 'add-host':

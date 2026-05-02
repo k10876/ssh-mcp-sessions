@@ -32,7 +32,6 @@ export type CliDependencies = {
   executableName?: string;
   readLogs?: (sessionName: string, options: { lines?: number; follow: boolean }) => Promise<string>;
   attachInstructions?: (sessionName: string) => Promise<string>;
-  runMcpMode?: (args: string[]) => Promise<void>;
 };
 
 function writeLine(stream: Pick<NodeJS.WriteStream, 'write'>, text: string): void {
@@ -190,11 +189,5 @@ export async function runCliCommand(parsed: import('./types.js').ParsedCliComman
       }
       return 0;
     }
-    case 'mcp':
-      if (!deps.runMcpMode) {
-        throw new ValidationError('MCP mode is not available in this build');
-      }
-      await deps.runMcpMode(parsed.args);
-      return 0;
   }
 }

@@ -52,7 +52,6 @@ export function formatHelp(version: string, executableName = 'ssh-cli'): string 
     `  close <session-name>`,
     `  logs <session-name> [--lines <n>] [--follow]`,
     `  attach <session-name>`,
-    `  mcp [args...]`,
     `  help`,
     `  version`,
     '',

@@ -55,7 +55,6 @@ function createDeps(overrides: Partial<CliDependencies> = {}): CliDependencies {
     stderr: { write: (chunk: string) => void (stderrText += chunk) },
     readLogs: vi.fn(async () => 'line1\nline2'),
     attachInstructions: vi.fn(async (sessionName: string) => `attach ${sessionName}`),
-    runMcpMode: vi.fn(async () => undefined),
     ...overrides,
     get __stdout() {
       return stdoutText;
@@ -265,7 +264,7 @@ describe('cli dispatch', () => {
     expect(deps.__stderr).toContain('[session-dead]');
   });
 
-  it('closes sessions, reads logs, emits attach instructions, and delegates mcp mode', async () => {
+  it('closes sessions, reads logs, and emits attach instructions', async () => {
     const deps = createDeps();
 
     await expect(runCliCommand({ kind: 'kill', sessionName: 'dev-shell' }, deps)).resolves.toBe(0);
@@ -273,12 +272,10 @@ describe('cli dispatch', () => {
       runCliCommand({ kind: 'logs', sessionName: 'dev-shell', options: { lines: 10, follow: false } }, deps),
     ).resolves.toBe(0);
     await expect(runCliCommand({ kind: 'attach', sessionName: 'dev-shell' }, deps)).resolves.toBe(0);
-    await expect(runCliCommand({ kind: 'mcp', args: ['--transport', 'stdio'] }, deps)).resolves.toBe(0);
 
     expect(deps.sessionService.closeSession).toHaveBeenCalledWith('dev-shell');
     expect(deps.readLogs).toHaveBeenCalledWith('dev-shell', { lines: 10, follow: false });
     expect(deps.attachInstructions).toHaveBeenCalledWith('dev-shell');
-    expect(deps.runMcpMode).toHaveBeenCalledWith(['--transport', 'stdio']);
   });
 
   it('fails on duplicate host ids before saving', async () => {

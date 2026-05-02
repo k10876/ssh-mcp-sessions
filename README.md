@@ -1,10 +1,10 @@
 # ssh-cli-sessions
 
-A Linux-first CLI SSH session manager with named persistent shells, per-session logs, dead-session visibility, and optional MCP mode for LLM tooling.
+A Linux-first CLI SSH session manager with named persistent shells, per-session logs, and dead-session visibility.
 
 ## Overview
 
-`ssh-cli-sessions` makes `ssh-cli` the primary interface for working with long-lived SSH shells from a terminal. It keeps named sessions in memory so repeated `exec` calls can preserve remote shell state such as the current working directory and environment variables. MCP support remains available through an explicit `ssh-cli mcp` command, but it is secondary to the human CLI workflow.
+`ssh-cli-sessions` makes `ssh-cli` the interface for working with long-lived SSH shells from a terminal. It keeps named sessions in memory so repeated `exec` calls can preserve remote shell state such as the current working directory and environment variables.
 
 ## Features
 
@@ -16,7 +16,6 @@ A Linux-first CLI SSH session manager with named persistent shells, per-session 
 - Session death tracking for `error`, `close`, and `end` events
 - `list` / `ps` output that shows active and recently dead sessions
 - `attach` guidance for remote `tmux` sessions
-- Optional MCP mode via `ssh-cli mcp`
 - Opt-in AI auto mode hook via `SSH_CLI_AI_AUTO_MODE=true` or `--auto`
 
 ## Installation
@@ -175,16 +174,6 @@ ssh -t alice@example.com "tmux attach -t ssh-cli-deploy-shell || tmux new -s ssh
 
 This is intended as a practical path for jumping into the remote environment interactively.
 
-### `ssh-cli mcp`
-
-Starts the optional MCP server mode.
-
-```bash
-ssh-cli mcp
-```
-
-Use this when an MCP-capable client needs to reuse the same backend concepts. MCP is not the default product framing.
-
 ## Storage paths
 
 ### Hosts
@@ -275,23 +264,6 @@ export SSH_CLI_AI_AUTO_MODE=true
 ```
 
 Default is off.
-
-## Optional MCP mode
-
-MCP remains supported for tooling compatibility, but it is explicit and secondary.
-
-Example client command:
-
-```json
-{
-  "mcpServers": {
-    "ssh-cli": {
-      "command": "ssh-cli",
-      "args": ["mcp"]
-    }
-  }
-}
-```
 
 ## Development
 

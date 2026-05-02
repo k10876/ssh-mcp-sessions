@@ -31,10 +31,6 @@ export async function runCli(argv: string[]): Promise<number> {
       hostStore: defaultHostStore,
       sessionService: sessionRepository,
     }),
-    runMcpMode: async () => {
-      const { startMcpServer } = await import('../index.js');
-      await startMcpServer();
-    },
   });
 }
 
