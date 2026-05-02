@@ -105,12 +105,17 @@ export function getMatchingExecReminders(
 }
 
 function matchesExecReminderRule(rule: CompiledExecReminderRule, command: string, output: string): boolean {
+  const matches = (value: string): boolean => {
+    rule.regex.lastIndex = 0;
+    return rule.regex.test(value);
+  };
+
   switch (rule.when) {
     case 'input':
-      return rule.regex.test(command);
+      return matches(command);
     case 'output':
-      return rule.regex.test(output);
+      return matches(output);
     case 'both':
-      return rule.regex.test(command) || rule.regex.test(output);
+      return matches(command) || matches(output);
   }
 }

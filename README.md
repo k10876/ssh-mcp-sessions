@@ -12,6 +12,7 @@ A Linux-first CLI SSH session manager with named persistent shells, per-session 
 - Named SSH sessions with shell reuse across CLI commands
 - Host storage in `~/.ssh-cli-sessions/hosts.json`
 - Session logs in `~/.ssh-cli-sessions/logs/`
+- Optional CLI config in `~/.ssh-cli-sessions/config.yaml`
 - Password, private key, and SSH agent authentication
 - Session death tracking for `error`, `close`, and `end` events
 - `list` / `ps` output that shows active and recently dead sessions
@@ -128,6 +129,32 @@ ssh-cli exec deploy-shell --file ./deploy.sh
 ```
 
 `ssh-cli` reads the file locally and sends its exact contents into the remote persistent shell. This preserves newlines and special characters without adding a language-specific execution mode.
+
+#### Exec reminders via config
+
+`exec` can append configurable reminder text after command output by reading `~/.ssh-cli-sessions/config.yaml`.
+
+Example:
+
+```yaml
+exec:
+  reminders:
+    - when: input
+      pattern: sbatch
+      reminder: "Use squeue to monitor the submitted job."
+    - when: output
+      pattern: "Submitted batch job"
+      reminder: "Capture the job id from the output above."
+```
+
+Rules support:
+
+- `when: input` — match against submitted command text
+- `when: output` — match against command output text
+- `when: both` — match either input or output
+- optional `flags` — regex flags such as `i`
+
+Invalid config shape or invalid regex causes `ssh-cli exec` to fail with a clear error.
 
 #### AI auto mode
 

@@ -233,5 +233,5 @@ function renderExecOutputWithReminders(output: string, reminders: string[]): str
     return reminderBlock;
   }
 
-  return `${output}\n${reminderBlock}`;
+  return `${output}\nIMPORTANT! Please follow these instructions: ${reminderBlock}`;
 }

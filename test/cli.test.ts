@@ -62,6 +62,7 @@ function createDeps(overrides: Partial<CliDependencies> = {}): CliDependencies {
     attachSession: vi.fn(async () => undefined),
     putPath: vi.fn(async (_options: CliTransferOptions) => "Uploaded '/tmp/file.txt' to 'dev:/remote/file.txt'"),
     getPath: vi.fn(async (_options: CliTransferOptions) => "Downloaded 'dev:/remote/file.txt' to '/tmp/file.txt'"),
+    loadUserConfig: vi.fn(async () => ({ exec: { reminders: [] } })),
     ...overrides,
     get __stdout() {
       return stdoutText;
@@ -263,6 +264,53 @@ printf "%s" "a$[]{};&|<>"\n`;
 
     expect(exitCode).toBe(0);
     expect(deps.sessionService.execute).toHaveBeenCalledWith('dev-shell', commandText);
+  });
+
+  it('appends matching exec reminders after command output', async () => {
+    const deps = createDeps({
+      loadUserConfig: vi.fn(async () => ({
+        exec: {
+          reminders: [
+            { when: 'input', pattern: 'sbatch', reminder: 'Use squeue to monitor the job.' },
+            { when: 'output', pattern: 'Submitted batch job', reminder: 'Save the printed job id.' },
+          ],
+        },
+      })),
+      sessionService: {
+        startSession: vi.fn(),
+        execute: vi.fn(async () => ({ output: 'Submitted batch job 42', exitCode: 0 })),
+        closeSession: vi.fn(),
+        getSessionInfo: vi.fn(),
+        listSessions: vi.fn(() => []),
+        listDeadSessions: vi.fn(() => []),
+        consumeNotifications: vi.fn(() => []),
+      },
+    });
+
+    const exitCode = await runCliCommand(
+      { kind: 'exec', sessionName: 'dev-shell', command: 'sbatch deploy.sh', options: { auto: false } },
+      deps,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(deps.__stdout).toContain('Submitted batch job 42');
+    expect(deps.__stdout).toContain('Use squeue to monitor the job.');
+    expect(deps.__stdout).toContain('Save the printed job id.');
+  });
+
+  it('fails clearly when exec reminder config is invalid', async () => {
+    const deps = createDeps({
+      loadUserConfig: vi.fn(async () => ({
+        exec: {
+          reminders: [{ when: 'both', pattern: '(', reminder: 'broken' }],
+        },
+      })),
+    });
+
+    await expect(
+      runCliCommand({ kind: 'exec', sessionName: 'dev-shell', command: 'pwd', options: { auto: false } }, deps),
+    ).rejects.toThrow(/Invalid exec reminder regex/);
+    expect(deps.sessionService.execute).not.toHaveBeenCalled();
   });
 
   it('lists sessions and hosts', async () => {

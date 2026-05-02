@@ -6,6 +6,15 @@ import { join } from 'node:path';
 import { compileExecReminderRules, getMatchingExecReminders, getMaxInactivityMs, loadUserConfig } from '../src/config.js';
 import { HostStore } from '../src/services/host-store.js';
 
+let tempDir = '';
+
+afterEach(async () => {
+  if (tempDir) {
+    await rm(tempDir, { recursive: true, force: true });
+    tempDir = '';
+  }
+});
+
 describe('config', () => {
   it('defaults max inactivity to 24 hours', () => {
     expect(getMaxInactivityMs({} as NodeJS.ProcessEnv)).toBe(24 * 60 * 60 * 1000);
@@ -78,18 +87,17 @@ describe('config', () => {
       'either reminder',
     ]);
   });
+
+  it('matches global reminder regexes across both input and output checks', () => {
+    const rules = compileExecReminderRules([
+      { when: 'both', pattern: 'job', flags: 'g', reminder: 'global reminder' },
+    ]);
+
+    expect(getMatchingExecReminders('job submit', 'job complete', rules)).toEqual(['global reminder']);
+  });
 });
 
 describe('host store', () => {
-  let tempDir = '';
-
-  afterEach(async () => {
-    if (tempDir) {
-      await rm(tempDir, { recursive: true, force: true });
-      tempDir = '';
-    }
-  });
-
   it('creates and validates the hosts file', async () => {
     tempDir = await mkdtemp(join(os.tmpdir(), 'ssh-cli-host-store-'));
     const store = new HostStore({
