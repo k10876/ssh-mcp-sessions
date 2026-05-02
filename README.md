@@ -90,6 +90,7 @@ Notes:
 - `--host` must be in `user@host` form.
 - Use either `--key-path` or `--password`, not both.
 - If neither is provided, the host can fall back to SSH agent auth when `SSH_AUTH_SOCK` is available.
+- Passwords stored with `--password` are currently written to `~/.ssh-cli-sessions/hosts.json` in plain text; the app only tightens filesystem permissions (`0700` dir, `0600` file).
 
 ### `ssh-cli start <session-name> --host <host>`
 
@@ -171,6 +172,8 @@ Behavior:
 - `tmux` is required on the local machine only
 - the remote host does not need `tmux`
 - the command reuses a local session named `ssh-cli-<session-name>`
+- matched stored hosts reuse saved auth details for the direct local `ssh` process
+- password-based attach currently requires local `sshpass`; if it is missing, `ssh-cli attach` fails with an explicit install/help message instead of unexpectedly prompting
 
 Equivalent local command pattern:
 
@@ -210,6 +213,8 @@ The implementation uses restricted permissions where feasible:
 
 - config directory: `0700`
 - hosts file: `0600`
+
+When a host uses `password`, that password is currently stored in plain text inside `hosts.json`; it is not encrypted by the application.
 
 ### Logs
 

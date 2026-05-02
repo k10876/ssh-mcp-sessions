@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ValidationError } from '../src/errors.js';
+import { CLIError, ValidationError } from '../src/errors.js';
 import { createAttachFallbackMessage, createAttachSession } from '../src/cli/io.js';
 import { parseCliArgs } from '../src/cli/parse.js';
 import { runCliCommand, type CliDependencies } from '../src/cli/run.js';
@@ -327,6 +327,172 @@ describe('attach helpers', () => {
         disposed: false,
       }),
     ).toContain('tmux new-session -A -s ssh-cli-dev-shell ssh -t alice@example.com');
+  });
+
+  it('includes the stored key path in attach commands for matching hosts', async () => {
+    const runCommand = vi.fn(async () => 0);
+    const attachSession = createAttachSession({
+      env: {},
+      runCommand,
+      hostStore: {
+        listHosts: vi.fn(async () => [{ id: 'dev', host: 'example.com', port: 2200, username: 'alice', keyPath: '~/.ssh/id_ed25519' }]),
+        saveHosts: vi.fn(async () => undefined),
+        getHost: vi.fn(async () => ({ id: 'dev', host: 'example.com', port: 2200, username: 'alice', keyPath: '~/.ssh/id_ed25519' })),
+        getConnectConfig: vi.fn(async () => ({ host: 'example.com', port: 2200, username: 'alice' })),
+      },
+      sessionService: {
+        startSession: vi.fn(),
+        execute: vi.fn(),
+        closeSession: vi.fn(),
+        getSessionInfo: vi.fn(async () => ({
+          id: 'dev-shell',
+          host: 'example.com',
+          port: 2200,
+          username: 'alice',
+          createdAt: 1,
+          lastCommand: null,
+          disposed: false,
+        })),
+        listSessions: vi.fn(async () => []),
+        listDeadSessions: vi.fn(async () => []),
+        consumeNotifications: vi.fn(async () => []),
+      },
+    });
+
+    await attachSession('dev-shell');
+
+    expect(runCommand).toHaveBeenNthCalledWith(
+      1,
+      'tmux',
+      ['new-session', '-Ad', '-s', 'ssh-cli-dev-shell', 'ssh', '-i', '~/.ssh/id_ed25519', '-p', '2200', '-t', 'alice@example.com'],
+      { stdio: 'inherit' },
+    );
+  });
+
+  it('uses sshpass for password-auth attach when a matching host stores a password', async () => {
+    const runCommand = vi.fn(async () => 0);
+    const attachSession = createAttachSession({
+      env: {},
+      runCommand,
+      hostStore: {
+        listHosts: vi.fn(async () => [{ id: 'dev', host: 'example.com', port: 22, username: 'alice', password: 'secret' }]),
+        saveHosts: vi.fn(async () => undefined),
+        getHost: vi.fn(async () => ({ id: 'dev', host: 'example.com', port: 22, username: 'alice', password: 'secret' })),
+        getConnectConfig: vi.fn(async () => ({ host: 'example.com', port: 22, username: 'alice' })),
+      },
+      sessionService: {
+        startSession: vi.fn(),
+        execute: vi.fn(),
+        closeSession: vi.fn(),
+        getSessionInfo: vi.fn(async () => ({
+          id: 'dev-shell',
+          host: 'example.com',
+          port: 22,
+          username: 'alice',
+          createdAt: 1,
+          lastCommand: null,
+          disposed: false,
+        })),
+        listSessions: vi.fn(async () => []),
+        listDeadSessions: vi.fn(async () => []),
+        consumeNotifications: vi.fn(async () => []),
+      },
+    });
+
+    await attachSession('dev-shell');
+
+    expect(runCommand).toHaveBeenNthCalledWith(1, 'sshpass', ['-V'], { stdio: 'ignore' });
+    expect(runCommand).toHaveBeenNthCalledWith(
+      2,
+      'tmux',
+      ['new-session', '-Ad', '-s', 'ssh-cli-dev-shell', 'sshpass', '-e', 'ssh', '-o', 'PreferredAuthentications=password', '-o', 'PubkeyAuthentication=no', '-t', 'alice@example.com'],
+      { stdio: 'inherit', env: { SSHPASS: 'secret' } },
+    );
+  });
+
+  it('fails clearly when password-auth attach needs sshpass but it is missing', async () => {
+    const runCommand = vi.fn(async () => {
+      const error = new Error('missing');
+      (error as NodeJS.ErrnoException).code = 'ENOENT';
+      throw error;
+    });
+    const attachSession = createAttachSession({
+      env: {},
+      runCommand,
+      hostStore: {
+        listHosts: vi.fn(async () => [{ id: 'dev', host: 'example.com', port: 22, username: 'alice', password: 'secret' }]),
+        saveHosts: vi.fn(async () => undefined),
+        getHost: vi.fn(async () => ({ id: 'dev', host: 'example.com', port: 22, username: 'alice', password: 'secret' })),
+        getConnectConfig: vi.fn(async () => ({ host: 'example.com', port: 22, username: 'alice' })),
+      },
+      sessionService: {
+        startSession: vi.fn(),
+        execute: vi.fn(),
+        closeSession: vi.fn(),
+        getSessionInfo: vi.fn(async () => ({
+          id: 'dev-shell',
+          host: 'example.com',
+          port: 22,
+          username: 'alice',
+          createdAt: 1,
+          lastCommand: null,
+          disposed: false,
+        })),
+        listSessions: vi.fn(async () => []),
+        listDeadSessions: vi.fn(async () => []),
+        consumeNotifications: vi.fn(async () => []),
+      },
+    });
+
+    await expect(attachSession('dev-shell')).rejects.toEqual(
+      new CLIError(
+        "Password-based attach for host 'dev' requires local 'sshpass'. Install sshpass and rerun, or re-save the host with --key-path / agent auth.",
+      ),
+    );
+  });
+
+  it('reports missing local tmux even for password-auth hosts', async () => {
+    const runCommand = vi
+      .fn(async () => 0)
+      .mockImplementationOnce(async () => 0)
+      .mockImplementationOnce(async () => {
+        const error = new Error('missing tmux');
+        (error as NodeJS.ErrnoException).code = 'ENOENT';
+        throw error;
+      });
+    const attachSession = createAttachSession({
+      env: {},
+      runCommand,
+      hostStore: {
+        listHosts: vi.fn(async () => [{ id: 'dev', host: 'example.com', port: 22, username: 'alice', password: 'secret' }]),
+        saveHosts: vi.fn(async () => undefined),
+        getHost: vi.fn(async () => ({ id: 'dev', host: 'example.com', port: 22, username: 'alice', password: 'secret' })),
+        getConnectConfig: vi.fn(async () => ({ host: 'example.com', port: 22, username: 'alice' })),
+      },
+      sessionService: {
+        startSession: vi.fn(),
+        execute: vi.fn(),
+        closeSession: vi.fn(),
+        getSessionInfo: vi.fn(async () => ({
+          id: 'dev-shell',
+          host: 'example.com',
+          port: 22,
+          username: 'alice',
+          createdAt: 1,
+          lastCommand: null,
+          disposed: false,
+        })),
+        listSessions: vi.fn(async () => []),
+        listDeadSessions: vi.fn(async () => []),
+        consumeNotifications: vi.fn(async () => []),
+      },
+    });
+
+    await expect(attachSession('dev-shell')).rejects.toEqual(
+      new CLIError(
+        "Local tmux is required for 'ssh-cli attach'. Install tmux on this machine and rerun; the remote host does not need tmux. Stored host id: dev.",
+      ),
+    );
   });
 
   it('starts and attaches a local tmux session without remote tmux commands', async () => {

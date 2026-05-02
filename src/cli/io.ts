@@ -4,12 +4,41 @@ import { resolve as resolvePath } from 'node:path';
 import os from 'node:os';
 
 import { CLIError } from '../errors.js';
+import type { StoredHost } from '../types/host.js';
 import type { SessionInfo } from '../types/session.js';
 import type { HostRepository, SessionRepository } from './run.js';
 
 const DEFAULT_LOGS_DIR = resolvePath(os.homedir(), '.ssh-cli-sessions', 'logs');
 
-type CommandRunner = (command: string, args: string[], options?: { stdio?: StdioOptions }) => Promise<number>;
+type CommandRunner = (
+  command: string,
+  args: string[],
+  options?: { stdio?: StdioOptions; env?: NodeJS.ProcessEnv },
+) => Promise<number>;
+
+async function ensureSshpassAvailable(runCommand: CommandRunner, hostId: string): Promise<void> {
+  try {
+    const exitCode = await runCommand('sshpass', ['-V'], { stdio: 'ignore' });
+    if (exitCode !== 0) {
+      throw new CLIError(
+        `Password-based attach for host '${hostId}' requires local 'sshpass'. Install sshpass and rerun, or re-save the host with --key-path / agent auth.`,
+      );
+    }
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === 'ENOENT'
+    ) {
+      throw new CLIError(
+        `Password-based attach for host '${hostId}' requires local 'sshpass'. Install sshpass and rerun, or re-save the host with --key-path / agent auth.`,
+      );
+    }
+
+    throw error;
+  }
+}
 
 export async function readSessionLogs(
   sessionName: string,
@@ -42,6 +71,29 @@ function getSshArgs(session: SessionInfo): string[] {
   return sshArgs;
 }
 
+function getAuthAwareSshCommand(session: SessionInfo, matchingHost: StoredHost | undefined): string[] {
+  const sshCommand = ['ssh'] as string[];
+
+  if (matchingHost?.password) {
+    return [
+      'sshpass',
+      '-e',
+      ...sshCommand,
+      '-o',
+      'PreferredAuthentications=password',
+      '-o',
+      'PubkeyAuthentication=no',
+      ...getSshArgs(session),
+    ];
+  }
+
+  if (matchingHost?.keyPath) {
+    sshCommand.push('-i', matchingHost.keyPath);
+  }
+
+  return [...sshCommand, ...getSshArgs(session)];
+}
+
 function getLocalTmuxSessionName(sessionName: string): string {
   const normalized = sessionName.trim().replace(/[^A-Za-z0-9_-]+/g, '-');
   return `ssh-cli-${normalized || 'session'}`;
@@ -49,7 +101,7 @@ function getLocalTmuxSessionName(sessionName: string): string {
 
 function createLocalTmuxCommand(sessionName: string, session: SessionInfo): string {
   const tmuxSessionName = getLocalTmuxSessionName(sessionName);
-  const commandParts = ['tmux', 'new-session', '-A', '-s', tmuxSessionName, 'ssh', ...getSshArgs(session)];
+  const commandParts = ['tmux', 'new-session', '-A', '-s', tmuxSessionName, ...getAuthAwareSshCommand(session, undefined)];
   return commandParts.join(' ');
 }
 
@@ -57,6 +109,7 @@ function createSpawnRunner(): CommandRunner {
   return async (command, args, options) =>
     new Promise<number>((resolve, reject) => {
       const child = spawn(command, args, {
+        env: options?.env,
         stdio: options?.stdio ?? 'inherit',
       });
 
@@ -88,10 +141,17 @@ export function createAttachSession(deps: {
     const localSessionName = getLocalTmuxSessionName(sessionName);
 
     try {
+      if (matchingHost?.password) {
+        await ensureSshpassAvailable(runCommand, matchingHost.id);
+      }
+
       const createExitCode = await runCommand(
         'tmux',
-        ['new-session', '-Ad', '-s', localSessionName, 'ssh', ...getSshArgs(session)],
-        { stdio: 'inherit' },
+        ['new-session', '-Ad', '-s', localSessionName, ...getAuthAwareSshCommand(session, matchingHost)],
+        {
+          stdio: 'inherit',
+          env: matchingHost?.password ? { ...(deps.env ?? process.env), SSHPASS: matchingHost.password } : undefined,
+        },
       );
 
       if (createExitCode !== 0) {
